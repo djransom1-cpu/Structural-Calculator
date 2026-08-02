@@ -69,16 +69,25 @@
       <!-- STEEL BEAM MODULE -->
       <div id="mod-steel-beam" class="module-content active">
         <h2 class="module-title">Steel Beam Analysis</h2>
-        <p class="module-desc">Calculates bending stress $\sigma = M/S_x$, deflection $\delta = \frac{5wL^4}{384EI}$, and max shear.</p>
+        <p class="module-desc">Tributary width loading, Dead/Live load separation, ASD/LRFD methods, and deflection checks.</p>
         
-        <div class="form-group">
-          <label for="sb-shape">AISC Section Shape</label>
-          <select id="sb-shape" class="form-control"></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-shape">AISC Section Shape</label>
+            <select id="sb-shape" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label for="sb-method">Design Method</label>
+            <select id="sb-method" class="form-control">
+              <option value="ASD">AISC ASD (Allowable Stress)</option>
+              <option value="LRFD">AISC LRFD (Load & Resistance)</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="sb-span">Span Length (L) <span class="unit-span">(ft)</span></label>
+            <label for="sb-span">Span Length (L) (ft)</label>
             <input type="number" id="sb-span" class="form-control" value="20" step="0.5" min="1">
           </div>
           <div class="form-group">
@@ -91,24 +100,79 @@
           </div>
         </div>
 
-        <div class="form-row">
+        <!-- Load Mode Selector -->
+        <div class="form-group">
+          <label for="sb-load-mode">Load Application Mode</label>
+          <select id="sb-load-mode" class="form-control">
+            <option value="tributary">Area Load (PSF) + Tributary Widths (ft)</option>
+            <option value="direct">Direct Line Load (plf or k/ft)</option>
+          </select>
+        </div>
+
+        <!-- Tributary Width Inputs -->
+        <div id="group-trib" class="form-row">
           <div class="form-group">
-            <label for="sb-w">Uniform Load (w) <span class="unit-w">(k/ft)</span></label>
-            <input type="number" id="sb-w" class="form-control" value="1.2" step="0.1" min="0">
+            <label for="sb-trib-left">Left Tributary Width (ft)</label>
+            <input type="number" id="sb-trib-left" class="form-control" value="6.0" step="0.5" min="0">
           </div>
           <div class="form-group">
-            <label for="sb-p">Center Point Load (P) <span class="unit-p">(kips)</span></label>
-            <input type="number" id="sb-p" class="form-control" value="5.0" step="0.5" min="0">
+            <label for="sb-trib-right">Right Tributary Width (ft)</label>
+            <input type="number" id="sb-trib-right" class="form-control" value="6.0" step="0.5" min="0">
+          </div>
+        </div>
+
+        <!-- Dead Load & Live Load Inputs -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-dl" id="label-dl">Dead Load (DL) (psf)</label>
+            <input type="number" id="sb-dl" class="form-control" value="20" step="5" min="0">
+          </div>
+          <div class="form-group">
+            <label for="sb-ll" id="label-ll">Live Load (LL) (psf)</label>
+            <input type="number" id="sb-ll" class="form-control" value="50" step="5" min="0">
+          </div>
+        </div>
+
+        <!-- Point Loads (Dead & Live) -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-p-dl">Point Dead Load ($P_{DL}$) (kips)</label>
+            <input type="number" id="sb-p-dl" class="form-control" value="1.5" step="0.5" min="0">
+          </div>
+          <div class="form-group">
+            <label for="sb-p-ll">Point Live Load ($P_{LL}$) (kips)</label>
+            <input type="number" id="sb-p-ll" class="form-control" value="3.0" step="0.5" min="0">
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="sb-deflect-limit">Deflection Code Limit</label>
-            <select id="sb-deflect-limit" class="form-control">
-              <option value="240">L / 240 (Total Load)</option>
-              <option value="360">L / 360 (Live Load)</option>
-              <option value="480">L / 480 (Plaster Ceiling)</option>
+            <label for="sb-p-pos">Point Load Location ($a$) (ft)</label>
+            <input type="number" id="sb-p-pos" class="form-control" value="10" step="0.5" min="0">
+          </div>
+          <div class="form-group" style="display:flex; align-items:center; margin-top:1.2rem;">
+            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+              <input type="checkbox" id="sb-selfweight" checked> Include Beam Self-Weight
+            </label>
+          </div>
+        </div>
+
+        <!-- Deflection Limits -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-deflect-live">Live Load Limit ($\delta_{LL}$)</label>
+            <select id="sb-deflect-live" class="form-control">
+              <option value="360">L / 360 (Standard)</option>
+              <option value="480">L / 480 (Plaster / Brittle)</option>
+              <option value="240">L / 240 (Roof)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sb-deflect-total">Total Load Limit ($\delta_{TL}$)</label>
+            <select id="sb-deflect-total" class="form-control">
+              <option value="240">L / 240 (Standard)</option>
+              <option value="360">L / 360 (Plaster / Strict)</option>
+              <option value="180">L / 180 (Industrial Roof)</option>
             </select>
           </div>
         </div>
@@ -126,7 +190,7 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label for="sc-length">Unbraced Height (L) <span class="unit-span">(ft)</span></label>
+            <label for="sc-length">Unbraced Height (L) (ft)</label>
             <input type="number" id="sc-length" class="form-control" value="12" step="0.5" min="1">
           </div>
           <div class="form-group">
@@ -141,7 +205,7 @@
         </div>
 
         <div class="form-group">
-          <label for="sc-axial">Applied Axial Load ($P_{\text{axial}}$) <span class="unit-p">(kips)</span></label>
+          <label for="sc-axial">Applied Axial Load ($P_{\text{axial}}$) (kips)</label>
           <input type="number" id="sc-axial" class="form-control" value="35.0" step="5" min="0">
         </div>
       </div>
@@ -153,18 +217,18 @@
         
         <div class="form-row">
           <div class="form-group">
-            <label for="cf-pdead">Dead Load ($P_{\text{dead}}$) <span class="unit-p">(kips)</span></label>
+            <label for="cf-pdead">Dead Load ($P_{\text{dead}}$) (kips)</label>
             <input type="number" id="cf-pdead" class="form-control" value="40" step="5" min="0">
           </div>
           <div class="form-group">
-            <label for="cf-plive">Live Load ($P_{\text{live}}$) <span class="unit-p">(kips)</span></label>
+            <label for="cf-plive">Live Load ($P_{\text{live}}$) (kips)</label>
             <input type="number" id="cf-plive" class="form-control" value="25" step="5" min="0">
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="cf-width">Width (B) <span class="unit-span">(ft)</span></label>
+            <label for="cf-width">Width (B) (ft)</label>
             <input type="number" id="cf-width" class="form-control" value="5.0" step="0.5" min="1">
           </div>
           <div class="form-group">
@@ -196,11 +260,11 @@
         
         <div class="form-row">
           <div class="form-group">
-            <label for="rw-height">Wall Height (H) <span class="unit-span">(ft)</span></label>
+            <label for="rw-height">Wall Height (H) (ft)</label>
             <input type="number" id="rw-height" class="form-control" value="10.0" step="0.5" min="2">
           </div>
           <div class="form-group">
-            <label for="rw-base">Base Width (B) <span class="unit-span">(ft)</span></label>
+            <label for="rw-base">Base Width (B) (ft)</label>
             <input type="number" id="rw-base" class="form-control" value="6.5" step="0.5" min="1">
           </div>
         </div>
@@ -240,7 +304,7 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label for="tb-span">Joist/Beam Span (L) <span class="unit-span">(ft)</span></label>
+            <label for="tb-span">Joist/Beam Span (L) (ft)</label>
             <input type="number" id="tb-span" class="form-control" value="14.0" step="0.5" min="2">
           </div>
           <div class="form-group">
@@ -284,7 +348,7 @@
 
   </main>
 
-  <!-- Printable Submittal Document Container (hidden on screen, active on window.print) -->
+  <!-- Printable Submittal Document Container -->
   <div id="printDocument" class="print-only">
     <div class="print-header">
       <h2>STRUCTURAL CALCULATIONS SUBMITTAL REPORT</h2>

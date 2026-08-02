@@ -12,7 +12,7 @@ import { StructuralDiagramRenderer } from './diagram_renderer.js';
 class StructuralApp {
   constructor() {
     this.currentModule = 'steel-beam';
-    this.unitSystem = 'imperial'; // 'imperial' or 'metric'
+    this.unitSystem = 'imperial';
     this.renderer = null;
 
     this.init();
@@ -23,17 +23,14 @@ class StructuralApp {
     this.setupEventListeners();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
-    // Register Service Worker for PWA Offline Capability
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Registration:', err));
     }
 
-    // First Calculation Run
     this.recalculate();
   }
 
   populateSelects() {
-    // Populate Steel Beam Shapes
     const sbSelect = document.getElementById('sb-shape');
     const scSelect = document.getElementById('sc-shape');
     
@@ -48,7 +45,6 @@ class StructuralApp {
     sbSelect.value = "W12x26";
     scSelect.value = "HSS6x6x3/8";
 
-    // Populate Timber Species & Sizes
     const tbSpeciesSelect = document.getElementById('tb-species');
     TIMBER_SPECIES.forEach(sp => {
       const opt = document.createElement('option');
@@ -75,9 +71,24 @@ class StructuralApp {
       });
     });
 
-    // Inputs Change Listeners for Instant Recalculation
+    // Steel Load Mode Toggle Listener
+    const loadModeSelect = document.getElementById('sb-load-mode');
+    if (loadModeSelect) {
+      loadModeSelect.addEventListener('change', () => {
+        const isTrib = loadModeSelect.value === 'tributary';
+        document.getElementById('group-trib').style.display = isTrib ? 'grid' : 'none';
+        document.getElementById('label-dl').textContent = isTrib ? 'Dead Load (DL) (psf)' : 'Dead Load (DL) (plf)';
+        document.getElementById('label-ll').textContent = isTrib ? 'Live Load (LL) (psf)' : 'Live Load (LL) (plf)';
+        this.recalculate();
+      });
+    }
+
+    // Input Change Listeners
     const inputIds = [
-      'sb-shape', 'sb-span', 'sb-fy', 'sb-w', 'sb-p', 'sb-deflect-limit',
+      'sb-shape', 'sb-method', 'sb-span', 'sb-fy', 'sb-load-mode',
+      'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll',
+      'sb-p-dl', 'sb-p-ll', 'sb-p-pos', 'sb-selfweight',
+      'sb-deflect-live', 'sb-deflect-total',
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
       'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
@@ -105,11 +116,10 @@ class StructuralApp {
     document.getElementById('unitToggleBtn').addEventListener('click', () => {
       this.unitSystem = this.unitSystem === 'imperial' ? 'metric' : 'imperial';
       document.getElementById('unitLabel').textContent = this.unitSystem === 'imperial' ? 'Imperial (US)' : 'Metric (SI)';
-      this.updateUnitLabels();
       this.recalculate();
     });
 
-    // Print Submittal Report Button
+    // Print Submittal Report
     document.getElementById('printReportBtn').addEventListener('click', () => {
       this.generatePrintReport();
       window.print();
@@ -125,13 +135,6 @@ class StructuralApp {
       mc.classList.toggle('active', mc.id === `mod-${moduleName}`);
     });
     this.recalculate();
-  }
-
-  updateUnitLabels() {
-    const isImp = this.unitSystem === 'imperial';
-    document.querySelectorAll('.unit-span').forEach(el => el.textContent = isImp ? '(ft)' : '(m)');
-    document.querySelectorAll('.unit-w').forEach(el => el.textContent = isImp ? '(k/ft)' : '(kN/m)');
-    document.querySelectorAll('.unit-p').forEach(el => el.textContent = isImp ? '(kips)' : '(kN)');
   }
 
   recalculate() {
@@ -159,27 +162,55 @@ class StructuralApp {
     const section = getSectionByName(secName);
 
     const inputs = {
+      method: document.getElementById('sb-method').value,
+      loadMode: document.getElementById('sb-load-mode').value,
       L_ft: parseFloat(document.getElementById('sb-span').value) || 20,
-      w_kft: parseFloat(document.getElementById('sb-w').value) || 0,
-      P_kips: parseFloat(document.getElementById('sb-p').value) || 0,
       Fy_ksi: parseFloat(document.getElementById('sb-fy').value) || 50,
-      deflectLimitTotal: parseFloat(document.getElementById('sb-deflect-limit').value) || 240,
+      tribLeft_ft: parseFloat(document.getElementById('sb-trib-left').value) || 0,
+      tribRight_ft: parseFloat(document.getElementById('sb-trib-right').value) || 0,
+      dl_psf: parseFloat(document.getElementById('sb-dl').value) || 0,
+      ll_psf: parseFloat(document.getElementById('sb-ll').value) || 0,
+      w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
+      w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
+      P_dl_kips: parseFloat(document.getElementById('sb-p-dl').value) || 0,
+      P_ll_kips: parseFloat(document.getElementById('sb-p-ll').value) || 0,
+      P_pos_ft: parseFloat(document.getElementById('sb-p-pos').value) || 10,
+      includeSelfWeight: document.getElementById('sb-selfweight').checked,
+      deflectLimitLive: parseFloat(document.getElementById('sb-deflect-live').value) || 360,
+      deflectLimitTotal: parseFloat(document.getElementById('sb-deflect-total').value) || 240,
       section
     };
 
     const res = analyzeSteelBeam(inputs);
     this.updateStatus(res.isPass, res.stressRatio * 100);
 
-    // Metrics Cards
+    const loadDesc = inputs.loadMode === 'tributary' 
+      ? `Trib: ${res.totalTrib_ft} ft (${inputs.tribLeft_ft}' + ${inputs.tribRight_ft}')`
+      : `Line Load: ${res.w_dl_plf.toFixed(0)} DL + ${res.w_ll_plf.toFixed(0)} LL plf`;
+
+    const stressLabel = res.method === 'ASD' ? 'Bending Stress \u03C3' : 'Factored Moment Mu';
+    const stressVal = res.method === 'ASD' ? `${res.bendingStress_ksi.toFixed(2)} ksi` : `${res.M_max_kipft.toFixed(1)} kip-ft`;
+    const stressSub = res.method === 'ASD' ? `Allowable: ${res.allowableStress_ksi.toFixed(2)} ksi` : `Capacity \u03C6Mn: ${res.allowableStress_ksi.toFixed(1)} kip-ft`;
+
     this.renderMetrics([
-      { label: "Section Shape", val: res.sectionName, sub: `${res.weight_lbft} lb/ft` },
-      { label: "Max Bending Moment", val: `${res.M_max_kipft.toFixed(1)} kip-ft`, sub: `M_max = ${res.M_max_kipin.toFixed(0)} k-in` },
-      { label: "Bending Stress \u03C3", val: `${res.bendingStress_ksi.toFixed(2)} ksi`, sub: `Allowable: ${res.allowableStress_ksi.toFixed(2)} ksi` },
-      { label: "Max Deflection \u03B4", val: `${res.delta_max_in.toFixed(3)}"`, sub: `Code Limit L/240: ${res.L240_in.toFixed(3)}"` }
+      { label: "Section & Loads", val: res.sectionName, sub: loadDesc },
+      { label: "Uniform Load w_total", val: `${(res.w_service_kft * 1000).toFixed(0)} plf`, sub: `Factored w_u: ${(res.w_factored_kft * 1000).toFixed(0)} plf (${res.method})` },
+      { label: stressLabel, val: stressVal, sub: stressSub },
+      { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit L/360: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
+      { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit L/240: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
     ]);
 
-    // Canvas Visualization
-    this.renderer.renderBeamAnalysis(res);
+    // Canvas Diagram
+    this.renderer.renderBeamAnalysis({
+      w_kft: res.w_service_kft,
+      P_kips: res.P_dl + res.P_ll,
+      L_ft: res.L_ft,
+      V_max_kips: res.V_max_kips,
+      M_max_kipft: res.M_max_kipft,
+      delta_max_in: res.delta_total_in,
+      L240_in: res.L240_in,
+      isPass: res.isPass
+    });
   }
 
   runSteelColumn() {
@@ -211,7 +242,7 @@ class StructuralApp {
       P_dead_kips: parseFloat(document.getElementById('cf-pdead').value) || 40,
       P_live_kips: parseFloat(document.getElementById('cf-plive').value) || 25,
       width_ft: parseFloat(document.getElementById('cf-width').value) || 5,
-      length_ft: parseFloat(document.getElementById('cf-width').value) || 5, // Square footing
+      length_ft: parseFloat(document.getElementById('cf-width').value) || 5,
       thickness_in: parseFloat(document.getElementById('cf-thick').value) || 14,
       q_allowable_ksf: parseFloat(document.getElementById('cf-qallow').value) || 3.0,
       fc_psi: parseFloat(document.getElementById('cf-fc').value) || 3000
@@ -330,7 +361,6 @@ class StructuralApp {
   }
 }
 
-// Instantiate App when DOM Ready
 window.addEventListener('DOMContentLoaded', () => {
   new StructuralApp();
 });
