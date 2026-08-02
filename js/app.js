@@ -1,6 +1,7 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - Interactive Custom Member Selection Print Submittal Package
  * - ASCE 7 Wind Uplift Pressure Calculator Modal (q_z Velocity Pressure & Roof Suction)
  * - Interactive Field Guide & Examples Tab for all Input Fields
  * - AISC DG1 Steel Column Base Plate & Anchor Bolts Design Engine
@@ -53,6 +54,7 @@ class StructuralApp {
     this.setupEventListeners();
     this.setupSubnavTabs();
     this.setupWindCalculator();
+    this.setupPrintModal();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
     if ('serviceWorker' in navigator) {
@@ -66,6 +68,81 @@ class StructuralApp {
     }
 
     this.recalculate();
+  }
+
+  setupPrintModal() {
+    const modal = document.getElementById('printOptionsModal');
+    const btnOpen = document.getElementById('printReportBtn');
+    const btnClose = document.getElementById('closePrintModalBtn');
+    const btnConfirm = document.getElementById('confirmPrintSelectedBtn');
+    const btnSelectAll = document.getElementById('selectAllPrintBtn');
+    const btnDeselectAll = document.getElementById('deselectAllPrintBtn');
+
+    btnOpen.addEventListener('click', () => {
+      this.renderPrintMemberChecklistUI();
+      modal.classList.remove('hidden');
+    });
+
+    btnClose.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+
+    btnSelectAll.addEventListener('click', () => {
+      document.querySelectorAll('.print-mem-checkbox').forEach(cb => cb.checked = true);
+    });
+
+    btnDeselectAll.addEventListener('click', () => {
+      document.querySelectorAll('.print-mem-checkbox').forEach(cb => cb.checked = false);
+    });
+
+    btnConfirm.addEventListener('click', () => {
+      const selectedIds = Array.from(document.querySelectorAll('.print-mem-checkbox:checked')).map(cb => cb.value);
+
+      if (selectedIds.length === 0) {
+        alert("⚠️ Please select at least one structural member to print.");
+        return;
+      }
+
+      modal.classList.add('hidden');
+      this.generateSelectedMembersPrintReport(selectedIds);
+      window.print();
+    });
+  }
+
+  renderPrintMemberChecklistUI() {
+    const container = document.getElementById('printMembersChecklist');
+    const proj = this.projects[this.activeProjectId];
+    if (!container || !proj || !proj.members) return;
+
+    container.innerHTML = '';
+    const memIds = Object.keys(proj.members);
+
+    memIds.forEach(id => {
+      const m = proj.members[id];
+      const label = document.createElement('label');
+      label.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: var(--text-color);
+      `;
+
+      const isChecked = id === this.activeMemberId || memIds.length === 1;
+
+      label.innerHTML = `
+        <input type="checkbox" class="print-mem-checkbox" value="${id}" ${isChecked ? 'checked' : ''} style="width:1.1rem; height:1.1rem; accent-color:var(--primary-color);">
+        <div style="flex:1;">
+          <strong style="color:var(--accent-color);">${m.name}</strong>
+          <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.4rem;">(${m.module.toUpperCase()})</span>
+        </div>
+      `;
+      container.appendChild(label);
+    });
   }
 
   setupWindCalculator() {
@@ -130,10 +207,9 @@ class StructuralApp {
     const Kzt = 1.0;
     const Ke = 1.0;
 
-    // qz = 0.00256 * Kz * Kzt * Kd * Ke * V^2
     const qz = 0.00256 * Kz * Kzt * Kd * Ke * Math.pow(V, 2);
 
-    let coeffNet = 1.38; // Zone 2 default
+    let coeffNet = 1.38;
     if (zone === 'field') coeffNet = 1.08;
     else if (zone === 'edge') coeffNet = 1.38;
     else if (zone === 'corner') coeffNet = 1.88;
@@ -1170,11 +1246,6 @@ class StructuralApp {
       document.getElementById('unitLabel').textContent = this.unitSystem === 'imperial' ? 'Imperial (US)' : 'Metric (SI)';
       this.recalculate();
     });
-
-    document.getElementById('printReportBtn').addEventListener('click', () => {
-      this.generatePrintReport();
-      window.print();
-    });
   }
 
   switchModule(moduleName) {
@@ -1591,95 +1662,110 @@ class StructuralApp {
     });
   }
 
-  generatePrintReport() {
-    const eng = document.getElementById('rep-engineer').value || 'John Doe, PE';
-    const comp = document.getElementById('rep-company').value || 'Apex Engineering LLC';
-    const proj = document.getElementById('rep-project').value || 'Commercial Structure';
-    const client = document.getElementById('rep-client').value || 'BuildRight Construction';
+  generateSelectedMembersPrintReport(selectedMemberIds) {
+    const proj = this.projects[this.activeProjectId];
+    if (!proj || !proj.members) return;
+
+    const eng = document.getElementById('rep-engineer').value || proj.engineer || 'John Doe, PE';
+    const comp = document.getElementById('rep-company').value || proj.company || 'Apex Engineering LLC';
+    const projName = document.getElementById('rep-project').value || proj.name || 'Commercial Structure';
+    const client = document.getElementById('rep-client').value || proj.client || 'BuildRight Construction';
 
     document.getElementById('printMetaInfo').innerHTML = `
       <strong>Engineer / Designer:</strong> ${eng} | <strong>Company:</strong> ${comp} | <strong>Date:</strong> ${new Date().toLocaleDateString()}<br>
-      <strong>Project Name:</strong> ${proj} | <strong>Client / Contractor:</strong> ${client}
+      <strong>Project Name:</strong> ${projName} | <strong>Client / Contractor:</strong> ${client}
     `;
 
-    const canvas = document.getElementById('analysisCanvas');
-    const canvasImgData = canvas ? canvas.toDataURL("image/png") : '';
+    const savedCurrentMemberId = this.activeMemberId;
+    let fullReportHTML = '';
 
-    let reactionsTableHTML = '';
-    if ((this.currentModule === 'steel-beam' || this.currentModule === 'timber') && this.lastResult && this.lastResult.reactions) {
-      const r = this.lastResult.reactions;
-      reactionsTableHTML = `
-        <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">BEARING POINT SUPPORT REACTIONS & WIND UPLIFT HOLD-DOWNS</h4>
-        <table class="print-table">
-          <thead>
-            <tr>
-              <th>Support Location</th>
-              <th>Dead Load (DL)</th>
-              <th>Live Load (LL)</th>
-              <th>Total Service Reaction</th>
-              <th>ASCE 7 Net Wind Uplift (Tension)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Left Bearing Support (R1)</strong></td>
-              <td>${r.R1.dl.toFixed(2)} kips</td>
-              <td>${r.R1.ll.toFixed(2)} kips</td>
-              <td><strong>${r.R1.service.toFixed(2)} kips</strong></td>
-              <td><strong style="color:${r.R1.uplift > 0 ? '#ef4444' : '#1e293b'};">${r.R1.uplift > 0 ? r.R1.uplift.toFixed(2) + ' kips UPLIFT' : '0.00 kips'}</strong></td>
-            </tr>
-            <tr>
-              <td><strong>Right Bearing Support (R2)</strong></td>
-              <td>${r.R2.dl.toFixed(2)} kips</td>
-              <td>${r.R2.ll.toFixed(2)} kips</td>
-              <td><strong>${r.R2.service.toFixed(2)} kips</strong></td>
-              <td><strong style="color:${r.R2.uplift > 0 ? '#ef4444' : '#1e293b'};">${r.R2.uplift > 0 ? r.R2.uplift.toFixed(2) + ' kips UPLIFT' : '0.00 kips'}</strong></td>
-            </tr>
-            ${this.lastResult.beamType === 'two-span' ? `
-            <tr>
-              <td><strong>Center Bearing Support (R3)</strong></td>
-              <td>${r.R3.dl.toFixed(2)} kips</td>
-              <td>${r.R3.ll.toFixed(2)} kips</td>
-              <td><strong>${r.R3.service.toFixed(2)} kips</strong></td>
-              <td>0.00 kips</td>
-            </tr>` : ''}
-          </tbody>
-        </table>
+    selectedMemberIds.forEach((memId, idx) => {
+      const m = proj.members[memId];
+      if (!m) return;
+
+      this.switchMember(memId);
+      const res = this.lastResult;
+      const canvas = document.getElementById('analysisCanvas');
+      const canvasImgData = canvas ? canvas.toDataURL("image/png") : '';
+
+      let reactionsTableHTML = '';
+      if ((m.module === 'steel-beam' || m.module === 'timber') && res && res.reactions) {
+        const r = res.reactions;
+        reactionsTableHTML = `
+          <h4 style="margin-top:1rem; font-size:0.95rem; color:#1e293b;">BEARING POINT SUPPORT REACTIONS & WIND UPLIFT HOLD-DOWNS</h4>
+          <table class="print-table">
+            <thead>
+              <tr>
+                <th>Support Location</th>
+                <th>Dead Load (DL)</th>
+                <th>Live Load (LL)</th>
+                <th>Total Service Reaction</th>
+                <th>ASCE 7 Net Wind Uplift (Tension)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Left Support (R1)</strong></td>
+                <td>${r.R1.dl.toFixed(2)} kips</td>
+                <td>${r.R1.ll.toFixed(2)} kips</td>
+                <td><strong>${r.R1.service.toFixed(2)} kips</strong></td>
+                <td><strong style="color:${r.R1.uplift > 0 ? '#ef4444' : '#1e293b'};">${r.R1.uplift > 0 ? r.R1.uplift.toFixed(2) + ' kips UPLIFT' : '0.00 kips'}</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Right Support (R2)</strong></td>
+                <td>${r.R2.dl.toFixed(2)} kips</td>
+                <td>${r.R2.ll.toFixed(2)} kips</td>
+                <td><strong>${r.R2.service.toFixed(2)} kips</strong></td>
+                <td><strong style="color:${r.R2.uplift > 0 ? '#ef4444' : '#1e293b'};">${r.R2.uplift > 0 ? r.R2.uplift.toFixed(2) + ' kips UPLIFT' : '0.00 kips'}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        `;
+      }
+
+      const metricsCards = Array.from(document.querySelectorAll('.metric-card')).map(card => {
+        const label = card.querySelector('.metric-label').textContent;
+        const val = card.querySelector('.metric-value').textContent;
+        const sub = card.querySelector('.metric-sub').textContent;
+        return `<tr><td><strong>${label}</strong></td><td>${val}</td><td>${sub}</td></tr>`;
+      }).join('');
+
+      fullReportHTML += `
+        <div style="${idx < selectedMemberIds.length - 1 ? 'page-break-after:always;' : ''} margin-bottom:2rem;">
+          <div style="background:#0f172a; color:#ffffff; padding:0.6rem 1rem; border-radius:4px; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0; font-size:1.1rem; color:#ffffff;">Member ${idx+1} of ${selectedMemberIds.length}: ${m.name}</h3>
+            <span style="font-size:0.85rem; font-weight:600; background:rgba(255,255,255,0.2); padding:0.2rem 0.5rem; border-radius:3px;">${m.module.toUpperCase()}</span>
+          </div>
+
+          ${reactionsTableHTML}
+
+          <h4 style="margin-top:1rem; font-size:0.95rem; color:#1e293b;">SUMMARY CALCULATION CHECKS</h4>
+          <table class="print-table">
+            <thead>
+              <tr>
+                <th>Parameter / Check</th>
+                <th>Calculated Value</th>
+                <th>Notes / Code Allowables</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${metricsCards}
+            </tbody>
+          </table>
+
+          <div style="margin-top:1.25rem; page-break-inside:avoid;">
+            <h4 style="font-size:0.95rem; color:#1e293b; margin-bottom:0.4rem;">EXPRESSED LOADS & ANALYSIS DIAGRAM DRAWING</h4>
+            <img src="${canvasImgData}" style="width:100%; max-height:280px; border:1px solid #cbd5e1; border-radius:6px;">
+          </div>
+        </div>
       `;
+    });
+
+    if (savedCurrentMemberId) {
+      this.switchMember(savedCurrentMemberId);
     }
 
-    const metricsCards = Array.from(document.querySelectorAll('.metric-card')).map(card => {
-      const label = card.querySelector('.metric-label').textContent;
-      const val = card.querySelector('.metric-value').textContent;
-      const sub = card.querySelector('.metric-sub').textContent;
-      return `<tr><td><strong>${label}</strong></td><td>${val}</td><td>${sub}</td></tr>`;
-    }).join('');
-
-    const body = document.getElementById('printBody');
-    body.innerHTML = `
-      <h3>Module Analysis Results: ${this.currentModule.toUpperCase()}</h3>
-      
-      ${reactionsTableHTML}
-
-      <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">SUMMARY CALCULATION CHECKS</h4>
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th>Parameter / Check</th>
-            <th>Calculated Value</th>
-            <th>Notes / Code Allowables</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${metricsCards}
-        </tbody>
-      </table>
-
-      <div style="margin-top:1.5rem; page-break-inside:avoid;">
-        <h4 style="font-size:1rem; color:#1e293b; margin-bottom:0.5rem;">EXPRESSED LOADS & ANALYSIS DIAGRAM DRAWING</h4>
-        <img src="${canvasImgData}" style="width:100%; max-height:300px; border:1px solid #cbd5e1; border-radius:6px;">
-      </div>
-    `;
+    document.getElementById('printBody').innerHTML = fullReportHTML;
   }
 }
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
-  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, Timber Framing with ASCE 7 Wind Uplift Calculator.">
+  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, Timber Framing with Custom Selected Member Submittal Printing.">
   <title>Structural Engineering Calculator & Estimator</title>
   
   <!-- PWA Manifest -->
@@ -34,6 +34,41 @@
         <div id="authErrorMsg" class="auth-error-msg" style="display:none;">⚠️ Invalid passcode. Access denied.</div>
         <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:1rem; width:100%;">Unlock Suite</button>
       </form>
+    </div>
+  </div>
+
+  <!-- PRINT OPTIONS & MEMBER SELECTION MODAL -->
+  <div id="printOptionsModal" class="dashboard-overlay hidden">
+    <div class="dashboard-container" style="max-width:520px;">
+      <div class="dashboard-header" style="padding-bottom:0.75rem; border-bottom:1px solid var(--panel-border);">
+        <div class="brand-icon" style="background:rgba(59, 130, 246, 0.15); color:var(--primary-color);">📄</div>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:700; color:var(--text-color);">Print Submittal Package Options</h2>
+          <p style="color:var(--text-muted); font-size:0.85rem;">Select which project members you want to include in your printed submittal report.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.85rem; padding-top:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-weight:600; font-size:0.9rem; color:var(--text-color);">Select Project Members to Print:</label>
+          <div style="display:flex; gap:0.5rem;">
+            <button id="selectAllPrintBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Select All</button>
+            <button id="deselectAllPrintBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Deselect All</button>
+          </div>
+        </div>
+
+        <!-- DYNAMIC CHECKLIST OF MEMBERS -->
+        <div id="printMembersChecklist" style="display:flex; flex-direction:column; gap:0.5rem; max-height:240px; overflow-y:auto; background:rgba(30, 41, 59, 0.4); border:1px solid var(--panel-border); border-radius:8px; padding:0.75rem;">
+          <!-- Dynamically populated by JS app.js -->
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button id="confirmPrintSelectedBtn" class="btn btn-primary" style="flex:2; padding:0.75rem; font-weight:700; background:var(--primary-color);">
+            📄 Generate & Print Submittal Package
+          </button>
+          <button id="closePrintModalBtn" class="btn btn-outline" style="flex:1; padding:0.75rem;">Cancel</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -205,7 +240,7 @@
         <span id="themeIcon">🌙</span>
       </button>
       <button id="lockAppBtn" class="btn btn-outline" title="Lock App Access" style="color:var(--warn-color); border-color:var(--warn-color);">🔒 Lock Suite</button>
-      <button id="printReportBtn" class="btn btn-primary" title="Print or Save PDF Report">
+      <button id="printReportBtn" class="btn btn-primary" title="Print Selected Project Members Submittal Package">
         📄 Print Submittal
       </button>
     </div>
