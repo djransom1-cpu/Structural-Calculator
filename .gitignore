@@ -4,5 +4,9 @@ Thumbs.db
 *.tmp
 *.log
 
+# Word Documents
+*.docx
+*.doc
+
 # Scratch directory
 scratch/
