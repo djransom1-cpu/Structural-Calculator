@@ -29,6 +29,8 @@
     </div>
 
     <div class="header-actions">
+      <button id="saveProjectBtn" class="btn btn-outline" title="Save Calculation Project">💾 Save Project</button>
+      <button id="loadProjectBtn" class="btn btn-outline" title="Load Saved Project">📂 Load</button>
       <button id="unitToggleBtn" class="btn btn-outline" title="Switch Imperial / Metric">
         <span id="unitLabel">Imperial (US)</span>
       </button>
@@ -68,7 +70,10 @@
       
       <!-- STEEL BEAM MODULE -->
       <div id="mod-steel-beam" class="module-content active">
-        <h2 class="module-title">Steel Beam Analysis</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+          <h2 class="module-title" style="margin:0;">Steel Beam Analysis</h2>
+          <button id="optiSteelBeamBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Shape</button>
+        </div>
         <p class="module-desc">Supports Floor/Roof Presets, Cantilevers, 2-Span Continuous Beams & Multiple Point Loads.</p>
         
         <!-- Preset Selector -->
@@ -212,7 +217,10 @@
 
       <!-- STEEL COLUMN MODULE -->
       <div id="mod-steel-column" class="module-content">
-        <h2 class="module-title">Steel Column Buckling</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+          <h2 class="module-title" style="margin:0;">Steel Column Buckling</h2>
+          <button id="optiSteelColBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Column</button>
+        </div>
         <p class="module-desc">Euler critical buckling load & AISC slenderness check ($KL/r$).</p>
         
         <div class="form-row">
@@ -356,6 +364,32 @@
         </div>
       </div>
 
+      <!-- PRO SUBMITTAL REPORT HEADER CUSTOMIZER -->
+      <hr style="margin:1.5rem 0; border:none; border-top:1px solid var(--panel-border);">
+      <h3 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--text-muted);">📄 Submittal Header Customizer</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rep-engineer">Engineer / Designer Name</label>
+          <input type="text" id="rep-engineer" class="form-control" placeholder="John Doe, PE">
+        </div>
+        <div class="form-group">
+          <label for="rep-company">Company / Firm Name</label>
+          <input type="text" id="rep-company" class="form-control" placeholder="Apex Engineering LLC">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rep-project">Project Name / Location</label>
+          <input type="text" id="rep-project" class="form-control" placeholder="Main Street Commercial Building">
+        </div>
+        <div class="form-group">
+          <label for="rep-client">Client / Contractor</label>
+          <input type="text" id="rep-client" class="form-control" placeholder="BuildRight Construction">
+        </div>
+      </div>
+
     </section>
 
     <!-- RIGHT PANEL: VISUAL DIAGRAMS & RESULTS -->
@@ -394,7 +428,7 @@
   <div id="printDocument" class="print-only">
     <div class="print-header">
       <h2>STRUCTURAL CALCULATIONS SUBMITTAL REPORT</h2>
-      <p>Project: Structural Engineering Calculator | Date: <span id="printDate"></span></p>
+      <p id="printMetaInfo"></p>
     </div>
     <div id="printBody"></div>
   </div>

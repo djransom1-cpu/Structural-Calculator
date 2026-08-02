@@ -1,9 +1,14 @@
 /**
  * Master Application State & Event Controller
+ * Integrates:
+ * - Member Auto-Optimizers for Beams & Columns
+ * - Visual Canvas Diagrams for ALL 5 Modules
+ * - Project Save / Load & LocalStorage Persistence
+ * - Custom Submittal Header Report Generator
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
-import { analyzeSteelBeam, analyzeSteelColumn } from './steel_engine.js';
+import { analyzeSteelBeam, analyzeSteelColumn, findLightestSteelBeam, findLightestSteelColumn } from './steel_engine.js';
 import { analyzeConcreteFooting } from './concrete_engine.js';
 import { analyzeRetainingWall } from './retaining_engine.js';
 import { TIMBER_SPECIES, LUMBER_SIZES, analyzeTimberMember } from './timber_engine.js';
@@ -31,15 +36,14 @@ class StructuralApp {
       navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Registration:', err));
     }
 
+    this.loadFromLocalStorage();
     this.recalculate();
   }
 
   populateSelects() {
-    // Populate Beam Shapes based on selected Family
     this.updateBeamShapes();
     this.updateColumnShapes();
 
-    // Categorized Groups for Timber & Engineered Wood
     const tbSpeciesSelect = document.getElementById('tb-species');
     tbSpeciesSelect.innerHTML = '';
     TIMBER_SPECIES.forEach(sp => {
@@ -180,13 +184,27 @@ class StructuralApp {
   }
 
   setupEventListeners() {
-    // Navigation Tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const targetModule = e.currentTarget.dataset.module;
         this.switchModule(targetModule);
       });
     });
+
+    // Auto-Optimizer Buttons
+    const optiBeamBtn = document.getElementById('optiSteelBeamBtn');
+    if (optiBeamBtn) {
+      optiBeamBtn.addEventListener('click', () => this.autoOptimizeSteelBeam());
+    }
+
+    const optiColBtn = document.getElementById('optiSteelColBtn');
+    if (optiColBtn) {
+      optiColBtn.addEventListener('click', () => this.autoOptimizeSteelColumn());
+    }
+
+    // Save & Load Project Buttons
+    document.getElementById('saveProjectBtn').addEventListener('click', () => this.saveToLocalStorage());
+    document.getElementById('loadProjectBtn').addEventListener('click', () => this.loadFromLocalStorage());
 
     // Cascading Steel Family Listeners
     const sbFamilySelect = document.getElementById('sb-family');
@@ -279,7 +297,7 @@ class StructuralApp {
       });
     }
 
-    // General Input Change Listeners
+    // Input Change Listeners
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
       'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
@@ -287,7 +305,8 @@ class StructuralApp {
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
       'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
-      'tb-species', 'tb-size', 'tb-span', 'tb-w'
+      'tb-species', 'tb-size', 'tb-span', 'tb-w',
+      'rep-engineer', 'rep-company', 'rep-project', 'rep-client'
     ];
 
     inputIds.forEach(id => {
@@ -327,6 +346,84 @@ class StructuralApp {
       mc.classList.toggle('active', mc.id === `mod-${moduleName}`);
     });
     this.recalculate();
+  }
+
+  autoOptimizeSteelBeam() {
+    const family = document.getElementById('sb-family').value;
+    const inputs = {
+      family,
+      beamType: document.getElementById('sb-beam-type').value,
+      method: document.getElementById('sb-method').value,
+      loadMode: document.getElementById('sb-load-mode').value,
+      L_ft: parseFloat(document.getElementById('sb-span').value) || 20,
+      L2_ft: parseFloat(document.getElementById('sb-span2').value) || 0,
+      tribLeft_ft: parseFloat(document.getElementById('sb-trib-left').value) || 0,
+      tribRight_ft: parseFloat(document.getElementById('sb-trib-right').value) || 0,
+      dl_psf: parseFloat(document.getElementById('sb-dl').value) || 0,
+      ll_psf: parseFloat(document.getElementById('sb-ll').value) || 0,
+      w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
+      w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
+      pointLoads: this.pointLoads,
+      includeSelfWeight: document.getElementById('sb-selfweight').checked,
+      deflectLimitLive: parseFloat(document.getElementById('sb-deflect-live').value) || 360,
+      deflectLimitTotal: parseFloat(document.getElementById('sb-deflect-total').value) || 240,
+    };
+
+    const opt = findLightestSteelBeam(inputs);
+    if (opt.found) {
+      document.getElementById('sb-shape').value = opt.section.name;
+      alert(`✨ Lightest Passing Section Found: ${opt.section.name} (${opt.section.weight} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
+      this.recalculate();
+    } else {
+      alert("⚠️ No passing section found in this family for the current loads/span. Try increasing beam depth or family.");
+    }
+  }
+
+  autoOptimizeSteelColumn() {
+    const family = document.getElementById('sc-family').value;
+    const inputs = {
+      family,
+      L_ft: parseFloat(document.getElementById('sc-length').value) || 12,
+      K: parseFloat(document.getElementById('sc-k').value) || 1.0,
+      P_axial_kips: parseFloat(document.getElementById('sc-axial').value) || 35,
+    };
+
+    const opt = findLightestSteelColumn(inputs);
+    if (opt.found) {
+      document.getElementById('sc-shape').value = opt.section.name;
+      alert(`✨ Lightest Passing Column Found: ${opt.section.name} (${opt.section.weight} lb/ft | Utilization: ${(opt.result.capacityRatio * 100).toFixed(1)}%)`);
+      this.recalculate();
+    } else {
+      alert("⚠️ No passing column section found in this family.");
+    }
+  }
+
+  saveToLocalStorage() {
+    const data = {
+      sb_family: document.getElementById('sb-family').value,
+      sb_shape: document.getElementById('sb-shape').value,
+      sb_span: document.getElementById('sb-span').value,
+      sc_shape: document.getElementById('sc-shape').value,
+      cf_pdead: document.getElementById('cf-pdead').value,
+      rw_height: document.getElementById('rw-height').value,
+      tb_species: document.getElementById('tb-species').value,
+      pointLoads: this.pointLoads
+    };
+    localStorage.setItem('structural_calc_project', JSON.stringify(data));
+    alert('💾 Project state saved locally!');
+  }
+
+  loadFromLocalStorage() {
+    const saved = localStorage.getItem('structural_calc_project');
+    if (!saved) return;
+    try {
+      const data = JSON.parse(saved);
+      if (data.sb_family) document.getElementById('sb-family').value = data.sb_family;
+      this.updateBeamShapes();
+      if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
+      if (data.sb_span) document.getElementById('sb-span').value = data.sb_span;
+      if (data.pointLoads) this.pointLoads = data.pointLoads;
+    } catch(e) {}
   }
 
   recalculate() {
@@ -423,7 +520,7 @@ class StructuralApp {
       { label: "Allowable Axial Load", val: `${res.P_allowable_kips.toFixed(1)} kips`, sub: `Applied: ${res.P_applied} kips` }
     ]);
 
-    this.renderer.clear();
+    this.renderer.renderColumnAnalysis(res);
   }
 
   runFooting() {
@@ -447,7 +544,7 @@ class StructuralApp {
       { label: "Rebar Schedule", val: res.rebarRecommendation, sub: "Bottom mat each way" }
     ]);
 
-    this.renderer.clear();
+    this.renderer.renderFootingAnalysis(res);
   }
 
   runRetaining() {
@@ -469,7 +566,7 @@ class StructuralApp {
       { label: "Sliding FOS", val: res.FOS_sliding.toFixed(2), sub: res.passSliding ? "Pass (\u2265 1.5)" : "FAIL (< 1.5)" }
     ]);
 
-    this.renderer.clear();
+    this.renderer.renderRetainingAnalysis(res);
   }
 
   runTimber() {
@@ -490,7 +587,7 @@ class StructuralApp {
       { label: "Deflection \u03B4", val: `${res.delta_max_in.toFixed(3)}"`, sub: `Limit L/240: ${res.L240_in.toFixed(3)}"` }
     ]);
 
-    this.renderer.clear();
+    this.renderer.renderTimberAnalysis(res);
   }
 
   updateStatus(isPass, utilPercent) {
@@ -522,9 +619,17 @@ class StructuralApp {
   }
 
   generatePrintReport() {
-    document.getElementById('printDate').textContent = new Date().toLocaleDateString();
-    const body = document.getElementById('printBody');
+    const eng = document.getElementById('rep-engineer').value || 'John Doe, PE';
+    const comp = document.getElementById('rep-company').value || 'Apex Engineering';
+    const proj = document.getElementById('rep-project').value || 'Commercial Structure';
+    const client = document.getElementById('rep-client').value || 'BuildRight Construction';
 
+    document.getElementById('printMetaInfo').innerHTML = `
+      <strong>Engineer:</strong> ${eng} | <strong>Company:</strong> ${comp} | <strong>Date:</strong> ${new Date().toLocaleDateString()}<br>
+      <strong>Project:</strong> ${proj} | <strong>Client:</strong> ${client}
+    `;
+
+    const body = document.getElementById('printBody');
     const metricsCards = Array.from(document.querySelectorAll('.metric-card')).map(card => {
       const label = card.querySelector('.metric-label').textContent;
       const val = card.querySelector('.metric-value').textContent;
@@ -533,13 +638,13 @@ class StructuralApp {
     }).join('');
 
     body.innerHTML = `
-      <h3>Active Analysis Module: ${this.currentModule.toUpperCase()}</h3>
+      <h3>Structural Analysis Submittal - Module: ${this.currentModule.toUpperCase()}</h3>
       <table class="print-table">
         <thead>
           <tr>
             <th>Parameter / Check</th>
             <th>Value</th>
-            <th>Notes / Limits</th>
+            <th>Notes / Code Limits</th>
           </tr>
         </thead>
         <tbody>

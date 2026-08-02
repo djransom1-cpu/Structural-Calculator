@@ -1,10 +1,6 @@
 /**
- * Steel Structural Calculation Engine - Advanced Beam Analysis
- * Supports:
- * - Single Span, Cantilever Overhangs, and 2-Span Continuous Beams
- * - Dynamic Multiple Concentrated Point Loads
- * - Floor Beam vs Roof Beam vs Plaster Ceiling Presets
- * - Dead/Live Load separation, ASD/LRFD methods
+ * Steel Structural Calculation Engine - Advanced Beam & Column Analysis
+ * Includes Member Auto-Optimizer for Lightest Passing Shapes
  */
 
 export const STEEL_CONSTANTS = {
@@ -13,19 +9,20 @@ export const STEEL_CONSTANTS = {
   DEFAULT_FY_KSI: 50.0,
 };
 
+import { AISC_DATABASE } from './aisc_database.js';
+
 /**
- * Perform comprehensive analysis for single-span, cantilever, or multi-span steel beams
+ * Perform comprehensive analysis for steel beams
  */
 export function analyzeSteelBeam(inputs) {
-  const beamType = inputs.beamType || 'single'; // 'single', 'cantilever', 'two-span'
-  const L1_ft = inputs.L_ft || 20; // Primary span L1 (ft)
-  const L2_ft = inputs.L2_ft || 0; // Secondary span or Cantilever length L2 (ft)
+  const beamType = inputs.beamType || 'single';
+  const L1_ft = inputs.L_ft || 20;
+  const L2_ft = inputs.L2_ft || 0;
   const L1_in = L1_ft * 12;
   const section = inputs.section;
   const Fy = inputs.Fy_ksi || STEEL_CONSTANTS.DEFAULT_FY_KSI;
   const method = inputs.method || 'ASD';
 
-  // 1. Uniform Distributed Loads
   const totalTrib_ft = (inputs.tribLeft_ft || 0) + (inputs.tribRight_ft || 0);
   const selfWeight_plf = inputs.includeSelfWeight ? (section.weight || 0) : 0;
   
@@ -45,8 +42,6 @@ export function analyzeSteelBeam(inputs) {
     ? (1.2 * w_dl_kft + 1.6 * w_ll_kft)
     : w_service_kft;
 
-  // 2. Dynamic Multiple Point Loads
-  // Array of { P_dl, P_ll, pos_ft }
   const pointLoads = inputs.pointLoads && inputs.pointLoads.length > 0
     ? inputs.pointLoads
     : [{ P_dl: inputs.P_dl_kips || 0, P_ll: inputs.P_ll_kips || 0, pos_ft: inputs.P_pos_ft || L1_ft / 2 }];
@@ -68,23 +63,20 @@ export function analyzeSteelBeam(inputs) {
     const b = L1_ft - a;
 
     if (L1_ft > 0) {
-      M_point_factored += (P_fact * a * b * 12) / L1_ft; // kip-in
+      M_point_factored += (P_fact * a * b * 12) / L1_ft;
       V_point_factored += P_fact * (b / L1_ft);
 
-      // Deflection contribution
       delta_point_live += (P_l * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L1_in);
       delta_point_total += (P_serv * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L1_in);
     }
   });
 
-  // 3. Beam Configuration Mechanics (Single, Cantilever, 2-Span)
   let M_max_kipin = 0;
   let V_max_kips = 0;
   let delta_uniform_live = 0;
   let delta_uniform_total = 0;
 
   if (beamType === 'single') {
-    // Standard Simply Supported Beam
     const M_uni_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
     M_max_kipin = M_uni_fact + M_point_factored;
     V_max_kips = (w_factored_kft * L1_ft) / 2 + V_point_factored;
@@ -95,7 +87,6 @@ export function analyzeSteelBeam(inputs) {
     delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
 
   } else if (beamType === 'cantilever') {
-    // Single Span with Overhang Cantilever L2
     const M_span_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
     const M_cant_fact = (w_factored_kft * Math.pow(L2_ft, 2) * 12) / 2;
     M_max_kipin = Math.max(M_span_fact, M_cant_fact) + M_point_factored;
@@ -107,8 +98,6 @@ export function analyzeSteelBeam(inputs) {
     delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
 
   } else if (beamType === 'two-span') {
-    // 2-Span Continuous Beam over 3 supports (Three Moment Theorem)
-    // Max positive moment ~ 0.07 * w * L^2, Max negative interior moment ~ 0.125 * w * L^2
     const M_neg_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
     const M_pos_fact = (0.07 * w_factored_kft * Math.pow(L1_ft, 2) * 12);
     M_max_kipin = Math.max(M_neg_fact, M_pos_fact) + M_point_factored;
@@ -116,14 +105,12 @@ export function analyzeSteelBeam(inputs) {
 
     const w_ll_kin = w_ll_kft / 12;
     const w_serv_kin = w_service_kft / 12;
-    // Continuous beam deflection is approx 40% of simply supported deflection
     delta_uniform_live = (2 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
     delta_uniform_total = (2 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
   }
 
   const M_max_kipft = M_max_kipin / 12;
 
-  // 4. Stress Checks (ASD vs LRFD)
   let bendingStress_ksi = 0;
   let allowableStress_ksi = 0;
   let stressRatio = 0;
@@ -141,7 +128,6 @@ export function analyzeSteelBeam(inputs) {
     stressRatio = M_max_kipft / phiMn_kipft;
   }
 
-  // 5. Deflection Totals
   const delta_live_in = delta_uniform_live + delta_point_live;
   const delta_total_in = delta_uniform_total + delta_point_total;
 
@@ -186,6 +172,27 @@ export function analyzeSteelBeam(inputs) {
   };
 }
 
+/**
+ * Auto-Optimizer: Find Lightest Passing Steel Beam Section
+ */
+export function findLightestSteelBeam(inputs) {
+  const family = inputs.family || 'W';
+  const candidates = AISC_DATABASE.filter(s => s.type === family).sort((a, b) => a.weight - b.weight);
+
+  for (let sec of candidates) {
+    const testInputs = { ...inputs, section: sec };
+    const res = analyzeSteelBeam(testInputs);
+    if (res.isPass) {
+      return { found: true, section: sec, result: res };
+    }
+  }
+
+  return { found: false };
+}
+
+/**
+ * Column Buckling Analysis
+ */
 export function analyzeSteelColumn(inputs) {
   const L_in = inputs.L_ft * 12;
   const K = inputs.K || 1.0;
@@ -227,4 +234,22 @@ export function analyzeSteelColumn(inputs) {
     isPass,
     slendernessPass: KLr_max <= 200
   };
+}
+
+/**
+ * Auto-Optimizer: Find Lightest Passing Column Section
+ */
+export function findLightestSteelColumn(inputs) {
+  const family = inputs.family || 'HSS';
+  const candidates = AISC_DATABASE.filter(s => s.type === family).sort((a, b) => a.weight - b.weight);
+
+  for (let sec of candidates) {
+    const testInputs = { ...inputs, section: sec };
+    const res = analyzeSteelColumn(testInputs);
+    if (res.isPass) {
+      return { found: true, section: sec, result: res };
+    }
+  }
+
+  return { found: false };
 }
