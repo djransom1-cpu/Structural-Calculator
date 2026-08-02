@@ -1,17 +1,17 @@
 /**
  * Master Application State & Event Controller
- * Features:
+ * Complete Parity between Steel & Timber Modules:
+ * - 2-Step Cascading Family Selectors for Steel & Wood
  * - Bearing Support Reactions (R1, R2, R3) for Dead, Live, Total Service & Factored loads
  * - Graphical Beam Drawing Embedded in Printable PDF Submittal Reports
- * - Member Auto-Optimizers for Beams & Columns
- * - Project Save / Load Persistence
+ * - Member Auto-Optimizers for Steel Beams, Steel Columns & Timber Framing
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
 import { analyzeSteelBeam, analyzeSteelColumn, findLightestSteelBeam, findLightestSteelColumn } from './steel_engine.js';
 import { analyzeConcreteFooting } from './concrete_engine.js';
 import { analyzeRetainingWall } from './retaining_engine.js';
-import { TIMBER_SPECIES, LUMBER_SIZES, analyzeTimberMember } from './timber_engine.js';
+import { TIMBER_SPECIES, TIMBER_MEMBERS, analyzeTimberBeam, findLightestTimberBeam } from './timber_engine.js';
 import { StructuralDiagramRenderer } from './diagram_renderer.js';
 
 class StructuralApp {
@@ -20,8 +20,13 @@ class StructuralApp {
     this.unitSystem = 'imperial';
     this.renderer = null;
     this.lastResult = null;
+    
     this.pointLoads = [
       { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
+    ];
+
+    this.tbPointLoads = [
+      { P_dl: 0.5, P_ll: 1.0, pos_ft: 7.0 }
     ];
 
     this.init();
@@ -30,6 +35,7 @@ class StructuralApp {
   init() {
     this.populateSelects();
     this.renderPointLoadsUI();
+    this.renderTimberPointLoadsUI();
     this.setupEventListeners();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
@@ -44,39 +50,15 @@ class StructuralApp {
   populateSelects() {
     this.updateBeamShapes();
     this.updateColumnShapes();
+    this.updateTimberMembers();
 
     const tbSpeciesSelect = document.getElementById('tb-species');
     tbSpeciesSelect.innerHTML = '';
     TIMBER_SPECIES.forEach(sp => {
       const opt = document.createElement('option');
       opt.value = sp.name;
-      opt.textContent = `${sp.name} (Fb: ${sp.Fb} psi)`;
+      opt.textContent = `${sp.name} (Fb: ${sp.Fb} psi | E: ${(sp.E/1000000).toFixed(2)}M)`;
       tbSpeciesSelect.appendChild(opt);
-    });
-
-    const tbSizeSelect = document.getElementById('tb-size');
-    tbSizeSelect.innerHTML = '';
-
-    const woodCats = {
-      'sawn': 'Dimension Sawn Lumber',
-      'lvl': 'LVL (1-Ply, 2-Ply, 3-Ply, 4-Ply Headers)',
-      'glulam': 'Glulam Architectural Beams',
-      'ijoist': 'TJI Engineered Wood I-Joists'
-    };
-
-    Object.keys(woodCats).forEach(catKey => {
-      const grp = document.createElement('optgroup');
-      grp.label = woodCats[catKey];
-      const sizes = LUMBER_SIZES.filter(sz => sz.category === catKey);
-      sizes.forEach(sz => {
-        const opt = document.createElement('option');
-        opt.value = sz.name;
-        opt.textContent = `${sz.name} (Sx: ${sz.Sx} in³)`;
-        grp.appendChild(opt);
-      });
-      if (sizes.length > 0) {
-        tbSizeSelect.appendChild(grp);
-      }
     });
   }
 
@@ -119,6 +101,27 @@ class StructuralApp {
 
     if (matchingShapes.length > 0) {
       shapeSelect.value = matchingShapes[0].name;
+    }
+  }
+
+  updateTimberMembers() {
+    const familySelect = document.getElementById('tb-family');
+    const sizeSelect = document.getElementById('tb-size');
+    if (!familySelect || !sizeSelect) return;
+
+    const family = familySelect.value || 'sawn';
+    sizeSelect.innerHTML = '';
+
+    const matchingMembers = TIMBER_MEMBERS.filter(m => m.category === family);
+    matchingMembers.forEach(mem => {
+      const opt = document.createElement('option');
+      opt.value = mem.name;
+      opt.textContent = `${mem.name} (Ix: ${mem.Ix} in⁴ | Sx: ${mem.Sx} in³)`;
+      sizeSelect.appendChild(opt);
+    });
+
+    if (matchingMembers.length > 0) {
+      sizeSelect.value = matchingMembers[0].name;
     }
   }
 
@@ -184,6 +187,68 @@ class StructuralApp {
     });
   }
 
+  renderTimberPointLoadsUI() {
+    const container = document.getElementById('tbPointLoadsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    this.tbPointLoads.forEach((pt, idx) => {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      row.style.alignItems = 'center';
+      row.innerHTML = `
+        <div style="flex:1;">
+          <input type="number" class="form-control tb-pt-pdl" data-idx="${idx}" value="${pt.P_dl}" placeholder="P_DL (k)" step="0.25" min="0">
+        </div>
+        <div style="flex:1;">
+          <input type="number" class="form-control tb-pt-pll" data-idx="${idx}" value="${pt.P_ll}" placeholder="P_LL (k)" step="0.25" min="0">
+        </div>
+        <div style="flex:1;">
+          <input type="number" class="form-control tb-pt-pos" data-idx="${idx}" value="${pt.pos_ft}" placeholder="Pos a (ft)" step="0.5" min="0">
+        </div>
+        <div>
+          <button class="btn btn-outline remove-tb-pt-btn" data-idx="${idx}" style="padding:0.4rem 0.6rem; color:var(--fail-color); border-color:var(--fail-color);">&times;</button>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+
+    container.querySelectorAll('.tb-pt-pdl').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.tbPointLoads[idx].P_dl = parseFloat(e.target.value) || 0;
+        this.recalculate();
+      });
+    });
+
+    container.querySelectorAll('.tb-pt-pll').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.tbPointLoads[idx].P_ll = parseFloat(e.target.value) || 0;
+        this.recalculate();
+      });
+    });
+
+    container.querySelectorAll('.tb-pt-pos').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.tbPointLoads[idx].pos_ft = parseFloat(e.target.value) || 0;
+        this.recalculate();
+      });
+    });
+
+    container.querySelectorAll('.remove-tb-pt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        if (this.tbPointLoads.length > 1) {
+          this.tbPointLoads.splice(idx, 1);
+          this.renderTimberPointLoadsUI();
+          this.recalculate();
+        }
+      });
+    });
+  }
+
   setupEventListeners() {
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
@@ -192,105 +257,102 @@ class StructuralApp {
       });
     });
 
-    const optiBeamBtn = document.getElementById('optiSteelBeamBtn');
-    if (optiBeamBtn) {
-      optiBeamBtn.addEventListener('click', () => this.autoOptimizeSteelBeam());
-    }
-
-    const optiColBtn = document.getElementById('optiSteelColBtn');
-    if (optiColBtn) {
-      optiColBtn.addEventListener('click', () => this.autoOptimizeSteelColumn());
-    }
+    // Auto-Optimizer Buttons
+    document.getElementById('optiSteelBeamBtn')?.addEventListener('click', () => this.autoOptimizeSteelBeam());
+    document.getElementById('optiSteelColBtn')?.addEventListener('click', () => this.autoOptimizeSteelColumn());
+    document.getElementById('optiTimberBtn')?.addEventListener('click', () => this.autoOptimizeTimberBeam());
 
     document.getElementById('saveProjectBtn').addEventListener('click', () => this.saveToLocalStorage());
     document.getElementById('loadProjectBtn').addEventListener('click', () => this.loadFromLocalStorage());
 
-    const sbFamilySelect = document.getElementById('sb-family');
-    if (sbFamilySelect) {
-      sbFamilySelect.addEventListener('change', () => {
-        this.updateBeamShapes();
-        this.recalculate();
-      });
-    }
+    // Cascading Dropdowns
+    document.getElementById('sb-family')?.addEventListener('change', () => {
+      this.updateBeamShapes();
+      this.recalculate();
+    });
 
-    const scFamilySelect = document.getElementById('sc-family');
-    if (scFamilySelect) {
-      scFamilySelect.addEventListener('change', () => {
-        this.updateColumnShapes();
-        this.recalculate();
-      });
-    }
+    document.getElementById('sc-family')?.addEventListener('change', () => {
+      this.updateColumnShapes();
+      this.recalculate();
+    });
 
-    const presetSelect = document.getElementById('sb-preset');
-    if (presetSelect) {
-      presetSelect.addEventListener('change', () => {
-        const val = presetSelect.value;
-        if (val === 'floor') {
-          document.getElementById('sb-dl').value = 15;
-          document.getElementById('sb-ll').value = 40;
-          document.getElementById('sb-deflect-live').value = "360";
-          document.getElementById('sb-deflect-total').value = "240";
-        } else if (val === 'roof') {
-          document.getElementById('sb-dl').value = 15;
-          document.getElementById('sb-ll').value = 20;
-          document.getElementById('sb-deflect-live').value = "240";
-          document.getElementById('sb-deflect-total').value = "180";
-        } else if (val === 'plaster') {
-          document.getElementById('sb-dl').value = 15;
-          document.getElementById('sb-ll').value = 20;
-          document.getElementById('sb-deflect-live').value = "480";
-          document.getElementById('sb-deflect-total').value = "360";
-        } else if (val === 'commercial') {
-          document.getElementById('sb-dl').value = 25;
-          document.getElementById('sb-ll').value = 100;
-          document.getElementById('sb-deflect-live').value = "360";
-          document.getElementById('sb-deflect-total').value = "240";
-        }
-        this.recalculate();
-      });
-    }
+    document.getElementById('tb-family')?.addEventListener('change', () => {
+      this.updateTimberMembers();
+      this.recalculate();
+    });
 
-    const beamTypeSelect = document.getElementById('sb-beam-type');
-    if (beamTypeSelect) {
-      beamTypeSelect.addEventListener('change', () => {
-        const type = beamTypeSelect.value;
-        const groupSpan2 = document.getElementById('group-span2');
-        const labelSpan2 = document.getElementById('label-span2');
+    // Timber Application Presets
+    document.getElementById('tb-preset')?.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === 'floor') {
+        document.getElementById('tb-dl').value = 10;
+        document.getElementById('tb-ll').value = 40;
+        document.getElementById('tb-deflect-live').value = "360";
+        document.getElementById('tb-deflect-total').value = "240";
+      } else if (val === 'roof') {
+        document.getElementById('tb-dl').value = 15;
+        document.getElementById('tb-ll').value = 20;
+        document.getElementById('tb-deflect-live').value = "240";
+        document.getElementById('tb-deflect-total').value = "180";
+      } else if (val === 'header') {
+        document.getElementById('tb-dl').value = 15;
+        document.getElementById('tb-ll').value = 50;
+        document.getElementById('tb-deflect-live').value = "360";
+        document.getElementById('tb-deflect-total').value = "240";
+      } else if (val === 'deck') {
+        document.getElementById('tb-dl').value = 10;
+        document.getElementById('tb-ll').value = 50;
+        document.getElementById('tb-deflect-live').value = "360";
+        document.getElementById('tb-deflect-total').value = "240";
+      }
+      this.recalculate();
+    });
 
-        if (type === 'single') {
-          groupSpan2.style.display = 'none';
-        } else if (type === 'cantilever') {
-          groupSpan2.style.display = 'block';
-          labelSpan2.textContent = "Cantilever Overhang L2 (ft)";
-        } else if (type === 'two-span') {
-          groupSpan2.style.display = 'block';
-          labelSpan2.textContent = "Span 2 L2 (ft)";
-        }
-        this.recalculate();
-      });
-    }
+    // Timber Beam Type Listener
+    document.getElementById('tb-beam-type')?.addEventListener('change', (e) => {
+      const type = e.target.value;
+      const groupSpan2 = document.getElementById('tb-group-span2');
+      const labelSpan2 = document.getElementById('tb-label-span2');
 
-    const addPtBtn = document.getElementById('addPointLoadBtn');
-    if (addPtBtn) {
-      addPtBtn.addEventListener('click', () => {
-        const L = parseFloat(document.getElementById('sb-span').value) || 20;
-        this.pointLoads.push({ P_dl: 1.0, P_ll: 2.0, pos_ft: L / 2 });
-        this.renderPointLoadsUI();
-        this.recalculate();
-      });
-    }
+      if (type === 'single') {
+        groupSpan2.style.display = 'none';
+      } else if (type === 'cantilever') {
+        groupSpan2.style.display = 'block';
+        labelSpan2.textContent = "Cantilever Overhang L2 (ft)";
+      } else if (type === 'two-span') {
+        groupSpan2.style.display = 'block';
+        labelSpan2.textContent = "Span 2 L2 (ft)";
+      }
+      this.recalculate();
+    });
 
-    const loadModeSelect = document.getElementById('sb-load-mode');
-    if (loadModeSelect) {
-      loadModeSelect.addEventListener('change', () => {
-        const isTrib = loadModeSelect.value === 'tributary';
-        document.getElementById('group-trib').style.display = isTrib ? 'grid' : 'none';
-        document.getElementById('label-dl').textContent = isTrib ? 'Dead Load (DL) (psf)' : 'Dead Load (DL) (plf)';
-        document.getElementById('label-ll').textContent = isTrib ? 'Live Load (LL) (psf)' : 'Live Load (LL) (plf)';
-        this.recalculate();
-      });
-    }
+    // Timber Add Point Load Button Listener
+    document.getElementById('tbAddPointLoadBtn')?.addEventListener('click', () => {
+      const L = parseFloat(document.getElementById('tb-span').value) || 14;
+      this.tbPointLoads.push({ P_dl: 0.5, P_ll: 1.0, pos_ft: L / 2 });
+      this.renderTimberPointLoadsUI();
+      this.recalculate();
+    });
 
+    // Steel Load Mode Toggle Listener
+    document.getElementById('sb-load-mode')?.addEventListener('change', (e) => {
+      const isTrib = e.target.value === 'tributary';
+      document.getElementById('group-trib').style.display = isTrib ? 'grid' : 'none';
+      document.getElementById('label-dl').textContent = isTrib ? 'Dead Load (DL) (psf)' : 'Dead Load (DL) (plf)';
+      document.getElementById('label-ll').textContent = isTrib ? 'Live Load (LL) (psf)' : 'Live Load (LL) (plf)';
+      this.recalculate();
+    });
+
+    // Timber Load Mode Toggle Listener
+    document.getElementById('tb-load-mode')?.addEventListener('change', (e) => {
+      const isTrib = e.target.value === 'tributary';
+      document.getElementById('tb-group-trib').style.display = isTrib ? 'grid' : 'none';
+      document.getElementById('tb-label-dl').textContent = isTrib ? 'Dead Load (DL) (psf)' : 'Dead Load (DL) (plf)';
+      document.getElementById('tb-label-ll').textContent = isTrib ? 'Live Load (LL) (psf)' : 'Live Load (LL) (plf)';
+      this.recalculate();
+    });
+
+    // General Inputs
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
       'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
@@ -298,7 +360,8 @@ class StructuralApp {
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
       'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
-      'tb-species', 'tb-size', 'tb-span', 'tb-w',
+      'tb-species', 'tb-size', 'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
+      'tb-trib-left', 'tb-trib-right', 'tb-dl', 'tb-ll', 'tb-deflect-live', 'tb-deflect-total',
       'rep-engineer', 'rep-company', 'rep-project', 'rep-client'
     ];
 
@@ -391,6 +454,36 @@ class StructuralApp {
     }
   }
 
+  autoOptimizeTimberBeam() {
+    const family = document.getElementById('tb-family').value;
+    const inputs = {
+      family,
+      beamType: document.getElementById('tb-beam-type').value,
+      speciesName: document.getElementById('tb-species').value,
+      loadMode: document.getElementById('tb-load-mode').value,
+      L_ft: parseFloat(document.getElementById('tb-span').value) || 14,
+      L2_ft: parseFloat(document.getElementById('tb-span2').value) || 0,
+      tribLeft_ft: parseFloat(document.getElementById('tb-trib-left').value) || 0,
+      tribRight_ft: parseFloat(document.getElementById('tb-trib-right').value) || 0,
+      dl_psf: parseFloat(document.getElementById('tb-dl').value) || 0,
+      ll_psf: parseFloat(document.getElementById('tb-ll').value) || 0,
+      w_dl_plf: parseFloat(document.getElementById('tb-dl').value) || 0,
+      w_ll_plf: parseFloat(document.getElementById('tb-ll').value) || 0,
+      pointLoads: this.tbPointLoads,
+      deflectLimitLive: parseFloat(document.getElementById('tb-deflect-live').value) || 360,
+      deflectLimitTotal: parseFloat(document.getElementById('tb-deflect-total').value) || 240,
+    };
+
+    const opt = findLightestTimberBeam(inputs);
+    if (opt.found) {
+      document.getElementById('tb-size').value = opt.member.name;
+      alert(`✨ Lightest Passing Wood Member Found: ${opt.member.name} (${opt.member.weight} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
+      this.recalculate();
+    } else {
+      alert("⚠️ No passing wood member found in this category. Try increasing member size or changing wood species.");
+    }
+  }
+
   saveToLocalStorage() {
     const data = {
       sb_family: document.getElementById('sb-family').value,
@@ -399,8 +492,11 @@ class StructuralApp {
       sc_shape: document.getElementById('sc-shape').value,
       cf_pdead: document.getElementById('cf-pdead').value,
       rw_height: document.getElementById('rw-height').value,
+      tb_family: document.getElementById('tb-family').value,
       tb_species: document.getElementById('tb-species').value,
-      pointLoads: this.pointLoads
+      tb_size: document.getElementById('tb-size').value,
+      pointLoads: this.pointLoads,
+      tbPointLoads: this.tbPointLoads
     };
     localStorage.setItem('structural_calc_project', JSON.stringify(data));
     alert('💾 Project state saved locally!');
@@ -414,8 +510,11 @@ class StructuralApp {
       if (data.sb_family) document.getElementById('sb-family').value = data.sb_family;
       this.updateBeamShapes();
       if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
-      if (data.sb_span) document.getElementById('sb-span').value = data.sb_span;
+      if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
+      this.updateTimberMembers();
+      if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
       if (data.pointLoads) this.pointLoads = data.pointLoads;
+      if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
     } catch(e) {}
   }
 
@@ -576,23 +675,44 @@ class StructuralApp {
 
   runTimber() {
     const inputs = {
+      beamType: document.getElementById('tb-beam-type').value,
       speciesName: document.getElementById('tb-species').value,
       sizeName: document.getElementById('tb-size').value,
+      loadMode: document.getElementById('tb-load-mode').value,
       L_ft: parseFloat(document.getElementById('tb-span').value) || 14,
-      w_plf: parseFloat(document.getElementById('tb-w').value) || 120
+      L2_ft: parseFloat(document.getElementById('tb-span2').value) || 0,
+      tribLeft_ft: parseFloat(document.getElementById('tb-trib-left').value) || 0,
+      tribRight_ft: parseFloat(document.getElementById('tb-trib-right').value) || 0,
+      dl_psf: parseFloat(document.getElementById('tb-dl').value) || 0,
+      ll_psf: parseFloat(document.getElementById('tb-ll').value) || 0,
+      w_dl_plf: parseFloat(document.getElementById('tb-dl').value) || 0,
+      w_ll_plf: parseFloat(document.getElementById('tb-ll').value) || 0,
+      pointLoads: this.tbPointLoads,
+      deflectLimitLive: parseFloat(document.getElementById('tb-deflect-live').value) || 360,
+      deflectLimitTotal: parseFloat(document.getElementById('tb-deflect-total').value) || 240,
     };
 
-    const res = analyzeTimberMember(inputs);
+    const res = analyzeTimberBeam(inputs);
     this.lastResult = res;
     this.updateStatus(res.isPass, res.stressRatio * 100);
 
-    this.renderMetrics([
-      { label: "Member Size", val: res.sizeName, sub: res.speciesName },
-      { label: "Bending Moment", val: `${res.M_max_lbft.toFixed(0)} lb-ft`, sub: `Stress fb: ${res.fb_psi.toFixed(0)} psi` },
-      { label: "Allowable Stress Fb'", val: `${res.Fb_prime_psi.toFixed(0)} psi`, sub: res.passStress ? "Stress Pass" : "Overstressed" },
-      { label: "Deflection \u03B4", val: `${res.delta_max_in.toFixed(3)}"`, sub: `Limit L/240: ${res.L240_in.toFixed(3)}"` }
-    ]);
+    const r = res.reactions;
 
+    const metrics = [
+      { label: "Member Size & Species", val: res.sizeName, sub: res.speciesName },
+      { label: "Uniform Load w", val: `${res.w_service_plf.toFixed(0)} plf`, sub: `Span: ${res.L_ft} ft | Config: ${res.beamType.toUpperCase()}` },
+      { label: "Left Support Reaction R1", val: `${r.R1.service.toFixed(2)} kips`, sub: `DL: ${r.R1.dl.toFixed(2)}k | LL: ${r.R1.ll.toFixed(2)}k` },
+      { label: "Right Support Reaction R2", val: `${r.R2.service.toFixed(2)} kips`, sub: `DL: ${r.R2.dl.toFixed(2)}k | LL: ${r.R2.ll.toFixed(2)}k` },
+      { label: "Bending Moment M", val: `${res.M_max_lbft.toFixed(0)} lb-ft`, sub: `Stress fb: ${res.fb_psi.toFixed(0)} psi / Allow Fb': ${res.Fb_prime_psi.toFixed(0)} psi` },
+      { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
+      { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
+    ];
+
+    if (res.beamType === 'two-span') {
+      metrics.splice(4, 0, { label: "Center Support Reaction R3", val: `${r.R3.service.toFixed(2)} kips`, sub: `DL: ${r.R3.dl.toFixed(2)}k | LL: ${r.R3.ll.toFixed(2)}k` });
+    }
+
+    this.renderMetrics(metrics);
     this.renderer.renderTimberAnalysis(res);
   }
 
@@ -639,7 +759,7 @@ class StructuralApp {
     const canvasImgData = canvas ? canvas.toDataURL("image/png") : '';
 
     let reactionsTableHTML = '';
-    if (this.currentModule === 'steel-beam' && this.lastResult && this.lastResult.reactions) {
+    if ((this.currentModule === 'steel-beam' || this.currentModule === 'timber') && this.lastResult && this.lastResult.reactions) {
       const r = this.lastResult.reactions;
       reactionsTableHTML = `
         <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">BEARING POINT SUPPORT REACTIONS</h4>
