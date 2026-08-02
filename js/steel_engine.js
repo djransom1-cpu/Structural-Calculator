@@ -1,7 +1,7 @@
 /**
  * Steel Design Calculation Engine (AISC 15th Edition ASD / LRFD)
  * Includes ASCE 7 / IBC Wind Net Uplift Combinations (0.6D - 0.6W ASD / 0.9D - 1.0W LRFD)
- * and Net Uplift Reaction Forces (R1_uplift, R2_uplift).
+ * and AISC Design Guide 1 Base Plate Sizing, Bending Stress, & Anchor Rod Tension/Shear Design.
  */
 
 import { AISC_DATABASE } from './aisc_database.js';
@@ -26,7 +26,6 @@ export function analyzeSteelBeam(inputs) {
     w_ll_plf = (inputs.w_ll_plf || 0);
     w_wind_uplift_plf = (inputs.w_wind_plf || 0);
   } else {
-    // Asymmetric Side A (Left) & Side B (Right) Tributary Loads + Wind
     const tribLeft_ft = inputs.tribLeft_ft || 0;
     const tribRight_ft = inputs.tribRight_ft || 0;
     const dlLeft_psf = inputs.dlLeft_psf !== undefined ? inputs.dlLeft_psf : (inputs.dl_psf || 0);
@@ -41,13 +40,9 @@ export function analyzeSteelBeam(inputs) {
     w_wind_uplift_plf = wind_psf * ((tribLeft_ft + tribRight_ft) / 2);
   }
 
-  // Service Gravity Load
   const w_service_plf = w_dl_plf + w_ll_plf;
   const w_service_kft = w_service_plf / 1000;
 
-  // ASCE 7 Wind Uplift Combinations
-  // ASD Combo: 0.6 D - 0.6 W
-  // LRFD Combo: 0.9 D - 1.0 W
   let w_net_uplift_plf = 0;
   if (w_wind_uplift_plf > 0) {
     if (method === 'ASD') {
@@ -75,7 +70,7 @@ export function analyzeSteelBeam(inputs) {
   let delta_point_live = 0;
   let delta_point_total = 0;
 
-  const E = 29000; // Steel Modulus of Elasticity (ksi)
+  const E = 29000;
 
   if (beamType === 'single') {
     R1_dl_kips += (w_dl_plf * L1_ft / 1000) / 2;
@@ -127,7 +122,6 @@ export function analyzeSteelBeam(inputs) {
   const R2_service_kips = R2_dl_kips + R2_ll_kips;
   const R3_service_kips = R3_dl_kips + R3_ll_kips;
 
-  // Net Uplift Reaction Forces (ASCE 7 Tension Uplift at Bearing Points)
   const R1_uplift_kips = Math.max(0, (w_net_uplift_plf * L1_ft / 1000) / 2);
   const R2_uplift_kips = Math.max(0, (w_net_uplift_plf * L1_ft / 1000) / 2);
 
@@ -209,6 +203,9 @@ export function analyzeSteelBeam(inputs) {
   };
 }
 
+/**
+ * Complete Steel Column Buckling, AISC Base Plate Sizing, & Anchor Bolt Design Engine
+ */
 export function analyzeSteelColumn(inputs) {
   const L_ft = inputs.L_ft || 12;
   const K = inputs.K || 1.0;
@@ -251,7 +248,57 @@ export function analyzeSteelColumn(inputs) {
   const capacityRatio = P_applied / P_allowable_kips;
   const slendernessPass = KLr_max <= 200;
   const capacityPass = capacityRatio <= 1.0;
-  const isPass = slendernessPass && capacityPass && tensionPass;
+
+  // --- AISC DESIGN GUIDE 1: BASE PLATE SIZING & CONCRETE BEARING STRESS ---
+  const B_plate = inputs.bp_width || 12.0;  // Base Plate Width (in)
+  const N_plate = inputs.bp_length || 12.0; // Base Plate Length (in)
+  const tp_provided = inputs.bp_thick || 0.75; // Provided Thickness (in)
+  const Fy_plate = inputs.bp_fy || 36; // Plate Steel Grade (ksi)
+  const fc_concrete = inputs.fc_psi || 3000; // Concrete Strength (psi)
+
+  const A1_sqin = B_plate * N_plate; // Plate Bearing Area
+  const fp_concrete_psi = (P_applied * 1000) / A1_sqin; // Actual Bearing Stress (psi)
+  const fp_concrete_ksi = fp_concrete_psi / 1000;
+
+  // Allowable Concrete Bearing Stress (AISC ASD: Fp_allow = 0.35 f'c)
+  const Fp_allow_psi = 0.35 * fc_concrete;
+  const Fp_allow_ksi = Fp_allow_psi / 1000;
+  const passConcreteBearing = fp_concrete_psi <= Fp_allow_psi;
+
+  // Base Plate Bending Cantilever Overhangs (m & n)
+  // For HSS / Pipe / W-Shapes:
+  const col_d = section.d || 8.0;
+  const col_bf = section.b || col_d;
+
+  const m_overhang = (N_plate - (0.95 * col_d)) / 2;
+  const n_overhang = (B_plate - (0.80 * col_bf)) / 2;
+  const l_cantilever = Math.max(m_overhang, n_overhang, 0.1);
+
+  // Required Base Plate Thickness tp_req (AISC ASD: tp = l * sqrt(3.33 * fp / Fy))
+  const tp_req_in = l_cantilever * Math.sqrt((3.33 * fp_concrete_ksi) / Fy_plate);
+
+  // Actual Base Plate Bending Stress (fb_plate = 3 * fp * l^2 / tp^2)
+  const fb_plate_ksi = (3 * fp_concrete_ksi * Math.pow(l_cantilever, 2)) / Math.pow(tp_provided, 2);
+  const Fb_plate_allow_ksi = 0.75 * Fy_plate; // Allowable Plate Bending Stress
+  const passPlateBending = tp_provided >= tp_req_in;
+
+  // --- ANCHOR BOLTS / ANCHOR RODS DESIGN (F1554 Standards) ---
+  const ab_qty = inputs.ab_qty || 4;
+  const ab_dia = inputs.ab_dia || 0.75; // in
+  const ab_grade = inputs.ab_grade || 36; // F1554 Grade (36, 55, 105)
+
+  const ab_Fu_ksi = ab_grade === 105 ? 125 : (ab_grade === 55 ? 75 : 58);
+  const Ab_rod_sqin = (Math.PI * Math.pow(ab_dia, 2)) / 4;
+
+  // ASD Allowable Tension Strength per Anchor Rod (Fnt = 0.75 Fu / 2.0)
+  const P_rod_tension_allow_kips = (0.75 * ab_Fu_ksi * Ab_rod_sqin) / 2.0;
+  const Tension_per_rod_kips = isNetTension ? (P_net_tension_kips / ab_qty) : 0;
+  const passAnchorTension = Tension_per_rod_kips <= P_rod_tension_allow_kips;
+
+  // ASD Allowable Shear Strength per Anchor Rod (Fnv = 0.40 Fu / 2.0)
+  const P_rod_shear_allow_kips = (0.40 * ab_Fu_ksi * Ab_rod_sqin) / 2.0;
+
+  const isPass = slendernessPass && capacityPass && tensionPass && passConcreteBearing && passPlateBending && passAnchorTension;
 
   return {
     sectionName: section.name,
@@ -268,6 +315,26 @@ export function analyzeSteelColumn(inputs) {
     isNetTension,
     tensionPass,
     capacityRatio,
+    // Base Plate Output Properties
+    B_plate,
+    N_plate,
+    tp_provided,
+    tp_req_in,
+    fp_concrete_psi,
+    Fp_allow_psi,
+    fb_plate_ksi,
+    Fb_plate_allow_ksi,
+    l_cantilever,
+    passConcreteBearing,
+    passPlateBending,
+    // Anchor Rod Output Properties
+    ab_qty,
+    ab_dia,
+    ab_grade,
+    Tension_per_rod_kips,
+    P_rod_tension_allow_kips,
+    P_rod_shear_allow_kips,
+    passAnchorTension,
     slendernessPass,
     capacityPass,
     isPass

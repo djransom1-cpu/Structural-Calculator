@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
-  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, and Timber Framing with ASCE 7 Wind Uplift.">
+  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, and Timber Framing with AISC Base Plate & Anchor Rod Sizing.">
   <title>Structural Engineering Calculator & Estimator</title>
   
   <!-- PWA Manifest -->
@@ -77,7 +77,7 @@
               <label for="newProjModule">Starting Analysis Module</label>
               <select id="newProjModule" class="form-control">
                 <option value="steel-beam">🌉 Steel Beam Analysis</option>
-                <option value="steel-column">🏛️ HSS Column Buckling</option>
+                <option value="steel-column">🏛️ HSS Column & Base Plate</option>
                 <option value="footing">🧱 Concrete Spread Footing</option>
                 <option value="retaining">📐 Retaining Wall</option>
                 <option value="timber">🪵 Timber Framing & Engineered Wood</option>
@@ -161,7 +161,7 @@
       <span class="tab-icon">🌉</span> Steel Beam
     </button>
     <button class="nav-tab" data-module="steel-column">
-      <span class="tab-icon">🏛️</span> HSS Column
+      <span class="tab-icon">🏛️</span> Steel Column & Base Plate
     </button>
     <button class="nav-tab" data-module="footing">
       <span class="tab-icon">🧱</span> Concrete Footing
@@ -364,13 +364,13 @@
         </div>
       </div>
 
-      <!-- STEEL COLUMN MODULE WITH WIND UPLIFT TENSION -->
+      <!-- STEEL COLUMN & BASE PLATE & ANCHOR BOLTS MODULE -->
       <div id="mod-steel-column" class="module-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
-          <h2 class="module-title" style="margin:0;">Steel Column Buckling & Uplift</h2>
+          <h2 class="module-title" style="margin:0;">Steel Column, Base Plate & Anchor Bolts</h2>
           <button id="optiSteelColBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Column</button>
         </div>
-        <p class="module-desc">Euler buckling ($KL/r$) & ASCE 7 Wind Uplift Net Tension Check.</p>
+        <p class="module-desc">AISC DG1 Column Buckling, Concrete Base Plate Stress, & Anchor Rod Tension/Shear Design.</p>
         
         <div class="form-row">
           <div class="form-group">
@@ -413,6 +413,82 @@
             <input type="number" id="sc-wind-uplift" class="form-control" value="0.0" step="1" min="0" placeholder="e.g. 5.0 kips tension">
           </div>
         </div>
+
+        <!-- AISC BASE PLATE SIZING & CONCRETE BEARING STRESS -->
+        <div style="background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">📐 Base Plate Sizing & Concrete Bearing (AISC DG1)</div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bp-width">Base Plate Width B (in)</label>
+              <input type="number" id="bp-width" class="form-control" value="12.0" step="0.5" min="4">
+            </div>
+            <div class="form-group">
+              <label for="bp-length">Base Plate Length N (in)</label>
+              <input type="number" id="bp-length" class="form-control" value="12.0" step="0.5" min="4">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bp-thick">Base Plate Thickness $t_p$ (in)</label>
+              <select id="bp-thick" class="form-control">
+                <option value="0.375">3/8" Plate (0.375 in)</option>
+                <option value="0.500">1/2" Plate (0.500 in)</option>
+                <option value="0.625">5/8" Plate (0.625 in)</option>
+                <option value="0.750" selected>3/4" Plate (0.750 in)</option>
+                <option value="0.875">7/8" Plate (0.875 in)</option>
+                <option value="1.000">1" Plate (1.000 in)</option>
+                <option value="1.250">1-1/4" Plate (1.250 in)</option>
+                <option value="1.500">1-1/2" Plate (1.500 in)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bp-fy">Plate Steel Grade ($F_y$)</label>
+              <select id="bp-fy" class="form-control">
+                <option value="36">A36 (36 ksi Plate)</option>
+                <option value="50">A572 Gr 50 (50 ksi)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ANCHOR BOLTS / ANCHOR RODS DESIGN (AISC DG1 / F1554) -->
+        <div style="background:rgba(234, 179, 8, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(234, 179, 8, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--warn-color);">⚓ Anchor Bolts / Anchor Rods Design (F1554)</div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ab-qty"># of Anchor Rods</label>
+              <select id="ab-qty" class="form-control">
+                <option value="4" selected>4 Anchor Rods (Standard)</option>
+                <option value="6">6 Anchor Rods</option>
+                <option value="8">8 Anchor Rods</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ab-dia">Anchor Rod Diameter ($d_b$)</label>
+              <select id="ab-dia" class="form-control">
+                <option value="0.500">1/2" Anchor Rods</option>
+                <option value="0.625">5/8" Anchor Rods</option>
+                <option value="0.750" selected>3/4" Anchor Rods (0.75 in)</option>
+                <option value="0.875">7/8" Anchor Rods</option>
+                <option value="1.000">1" Anchor Rods</option>
+                <option value="1.250">1-1/4" Anchor Rods</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="ab-grade">Anchor Rod Material Specification</label>
+            <select id="ab-grade" class="form-control">
+              <option value="36">F1554 Grade 36 (Fu = 58 ksi)</option>
+              <option value="55">F1554 Grade 55 (Fu = 75 ksi)</option>
+              <option value="105">F1554 Grade 105 High-Strength (Fu = 125 ksi)</option>
+            </select>
+          </div>
+        </div>
+
       </div>
 
       <!-- CONCRETE FOOTING MODULE WITH WIND UPLIFT BALLAST CHECK -->
@@ -513,7 +589,7 @@
                 <option value="4">4" o.c.</option>
                 <option value="6">6" o.c.</option>
                 <option value="8">8" o.c.</option>
-                <option value="10">10" o.c me</option>
+                <option value="10">10" o.c.</option>
                 <option value="12" selected>12" o.c.</option>
                 <option value="14">14" o.c.</option>
                 <option value="16">16" o.c.</option>

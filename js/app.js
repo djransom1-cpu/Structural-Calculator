@@ -1,13 +1,12 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - AISC DG1 Steel Column Base Plate & Anchor Bolts Design Engine
  * - ASCE 7 / IBC Wind Net Uplift Load Combinations & Hold-Down Tension Checks
  * - Concrete Column Pad Footing (Side 1 x Side 2 x Pad Thickness & Column Pedestal)
  * - Custom Rebar Reinforcement Selection (#3-#10 @ 4"-18" spacing)
  * - Custom File Directory Save As... (window.showSaveFilePicker) & Export/Import (.json)
- * - Asymmetric Side A & Side B Load Inputs (DL_A, LL_A, Trib_A vs DL_B, LL_B, Trib_B)
  * - Multi-Member Project Management (Multiple Named Beams & Columns in 1 Project)
- * - Beam-to-Column Reaction Load Transfer Link
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
@@ -496,6 +495,15 @@ class StructuralApp {
     if (data.sc_axial) document.getElementById('sc-axial').value = data.sc_axial;
     if (data.sc_wind_uplift) document.getElementById('sc-wind-uplift').value = data.sc_wind_uplift;
 
+    if (data.bp_width) document.getElementById('bp-width').value = data.bp_width;
+    if (data.bp_length) document.getElementById('bp-length').value = data.bp_length;
+    if (data.bp_thick) document.getElementById('bp-thick').value = data.bp_thick;
+    if (data.bp_fy) document.getElementById('bp-fy').value = data.bp_fy;
+
+    if (data.ab_qty) document.getElementById('ab-qty').value = data.ab_qty;
+    if (data.ab_dia) document.getElementById('ab-dia').value = data.ab_dia;
+    if (data.ab_grade) document.getElementById('ab-grade').value = data.ab_grade;
+
     if (data.cf_width) document.getElementById('cf-width').value = data.cf_width;
     if (data.cf_length) document.getElementById('cf-length').value = data.cf_length;
     if (data.cf_thick) document.getElementById('cf-thick').value = data.cf_thick;
@@ -545,6 +553,13 @@ class StructuralApp {
       sc_shape: document.getElementById('sc-shape').value,
       sc_axial: document.getElementById('sc-axial').value,
       sc_wind_uplift: document.getElementById('sc-wind-uplift').value,
+      bp_width: document.getElementById('bp-width').value,
+      bp_length: document.getElementById('bp-length').value,
+      bp_thick: document.getElementById('bp-thick').value,
+      bp_fy: document.getElementById('bp-fy').value,
+      ab_qty: document.getElementById('ab-qty').value,
+      ab_dia: document.getElementById('ab-dia').value,
+      ab_grade: document.getElementById('ab-grade').value,
       cf_pdead: document.getElementById('cf-pdead').value,
       cf_plive: document.getElementById('cf-plive').value,
       cf_puplift: document.getElementById('cf-puplift').value,
@@ -911,6 +926,7 @@ class StructuralApp {
       'sb-trib-left', 'sb-trib-right', 'sb-dl-left', 'sb-dl-right', 'sb-ll-left', 'sb-ll-right', 'sb-wind-psf', 'sb-wind-plf',
       'sb-dl', 'sb-ll', 'sb-selfweight', 'sb-deflect-live', 'sb-deflect-total',
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial', 'sc-wind-uplift',
+      'bp-width', 'bp-length', 'bp-thick', 'bp-fy', 'ab-qty', 'ab-dia', 'ab-grade',
       'cf-pdead', 'cf-plive', 'cf-puplift', 'cf-width', 'cf-length', 'cf-thick', 'cf-col-w', 'cf-col-l', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
       'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
@@ -1010,6 +1026,13 @@ class StructuralApp {
       K: parseFloat(document.getElementById('sc-k').value) || 1.0,
       P_axial_kips: parseFloat(document.getElementById('sc-axial').value) || 35,
       P_wind_uplift_kips: parseFloat(document.getElementById('sc-wind-uplift').value) || 0,
+      bp_width: parseFloat(document.getElementById('bp-width').value) || 12,
+      bp_length: parseFloat(document.getElementById('bp-length').value) || 12,
+      bp_thick: parseFloat(document.getElementById('bp-thick').value) || 0.75,
+      bp_fy: parseFloat(document.getElementById('bp-fy').value) || 36,
+      ab_qty: parseInt(document.getElementById('ab-qty').value) || 4,
+      ab_dia: parseFloat(document.getElementById('ab-dia').value) || 0.75,
+      ab_grade: parseInt(document.getElementById('ab-grade').value) || 36,
     };
 
     const opt = findLightestSteelColumn(inputs);
@@ -1171,22 +1194,30 @@ class StructuralApp {
       K: parseFloat(document.getElementById('sc-k').value) || 1.0,
       P_axial_kips: parseFloat(document.getElementById('sc-axial').value) || 35,
       P_wind_uplift_kips: parseFloat(document.getElementById('sc-wind-uplift').value) || 0,
+      bp_width: parseFloat(document.getElementById('bp-width').value) || 12,
+      bp_length: parseFloat(document.getElementById('bp-length').value) || 12,
+      bp_thick: parseFloat(document.getElementById('bp-thick').value) || 0.75,
+      bp_fy: parseFloat(document.getElementById('bp-fy').value) || 36,
+      ab_qty: parseInt(document.getElementById('ab-qty').value) || 4,
+      ab_dia: parseFloat(document.getElementById('ab-dia').value) || 0.75,
+      ab_grade: parseInt(document.getElementById('ab-grade').value) || 36,
       section
     };
 
     const res = analyzeSteelColumn(inputs);
     this.lastResult = res;
-    this.updateStatus(res.isPass, res.capacityRatio * 100);
+    this.updateStatus(res.isPass, Math.max(res.capacityRatio * 100, (res.fp_concrete_psi / res.Fp_allow_psi) * 100));
 
     const metrics = [
-      { label: "Column Shape", val: section.name, sub: `Area: ${section.A} in\u00B2` },
-      { label: "Slenderness (KL/r)", val: res.KLr_max.toFixed(1), sub: res.slendernessPass ? "Pass (\u2264 200)" : "Exceeds 200 Limit" },
-      { label: "Euler Buckling P_cr", val: `${res.P_cr_kips.toFixed(1)} kips`, sub: `Critical Stress: ${res.Fe_ksi.toFixed(1)} ksi` },
-      { label: "Allowable Axial Load", val: `${res.P_allowable_kips.toFixed(1)} kips`, sub: `Applied: ${res.P_applied} kips` }
+      { label: "Column Shape & Height", val: section.name, sub: `Height: ${res.L_ft}' | Area: ${section.A} in\u00B2 | KL/r: ${res.KLr_max.toFixed(1)}` },
+      { label: "Base Plate Size (B \u00D7 N)", val: `${res.B_plate}" \u00D7 ${res.N_plate}" \u00D7 ${res.tp_provided}" PL`, sub: `Req Thickness: ${res.tp_req_in.toFixed(3)}" (${res.passPlateBending ? 'Pass' : 'FAIL - Increase Thickness'})` },
+      { label: "Concrete Bearing Stress fp", val: `${res.fp_concrete_psi.toFixed(0)} psi`, sub: `Allowable Fp: ${res.Fp_allow_psi.toFixed(0)} psi (${res.passConcreteBearing ? 'Pass' : 'FAIL - Increase Plate Size'})` },
+      { label: "Base Plate Bending Stress", val: `${res.fb_plate_ksi.toFixed(2)} ksi`, sub: `Allowable Fb: ${res.Fb_plate_allow_ksi.toFixed(2)} ksi (${res.passPlateBending ? 'Pass' : 'FAIL'})` },
+      { label: "Anchor Rods Schedule", val: `(${res.ab_qty}) ${res.ab_dia}" \u00D8 F1554 Gr ${res.ab_grade}`, sub: `Allowable Tension/Rod: ${res.P_rod_tension_allow_kips.toFixed(1)} kips | Shear: ${res.P_rod_shear_allow_kips.toFixed(1)} kips` }
     ];
 
     if (res.isNetTension) {
-      metrics.unshift({ label: "🌪️ Net Wind Uplift Tension", val: `${res.P_net_tension_kips.toFixed(1)} kips`, sub: `Anchor Strap Required (${res.tensionPass ? 'Pass' : 'FAIL'})` });
+      metrics.unshift({ label: "🌪️ Net Wind Uplift Tension", val: `${res.P_net_tension_kips.toFixed(1)} kips total`, sub: `${res.Tension_per_rod_kips.toFixed(2)} kips/rod vs ${res.P_rod_tension_allow_kips.toFixed(2)}k allowable (${res.passAnchorTension ? 'Pass' : 'FAIL'})` });
     }
 
     this.renderMetrics(metrics);
