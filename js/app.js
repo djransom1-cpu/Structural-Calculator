@@ -1,13 +1,12 @@
 /**
  * Master Application State & Event Controller
  * Features:
- * - Project Manager Landing Hub (#projectDashboard) with Saved Project Library & New Project Builder
- * - Continuous Auto-Save to Active Project State
+ * - Multi-Member Project Management (Multiple Named Beams & Columns in 1 Project)
+ * - Beam-to-Column Reaction Load Transfer Link (Transfer Beam R1/R2 to Column P_axial)
+ * - Project JSON File Export (.json) & Import (.json)
+ * - Project Manager Landing Hub (#projectDashboard)
+ * - Dynamic Built-Up Header Builder (# Plies x Ply Width x Depth)
  * - Access Passcode Authentication Protection
- * - Complete Parity between Steel & Timber Modules
- * - Bearing Support Reactions (R1, R2, R3) for Dead, Live, Total Service & Factored loads
- * - Graphical Beam Drawing Embedded in Printable PDF Submittal Reports
- * - Member Auto-Optimizers for Steel Beams, Steel Columns & Timber Framing
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
@@ -27,6 +26,7 @@ class StructuralApp {
     
     this.projects = this.loadProjectsFromStorage();
     this.activeProjectId = localStorage.getItem('structural_active_proj_id') || null;
+    this.activeMemberId = null;
 
     this.pointLoads = [
       { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
@@ -42,6 +42,8 @@ class StructuralApp {
   init() {
     this.setupAuth();
     this.setupProjectHub();
+    this.setupImportExport();
+    this.setupMemberManager();
     this.populateSelects();
     this.renderPointLoadsUI();
     this.renderTimberPointLoadsUI();
@@ -111,6 +113,53 @@ class StructuralApp {
     localStorage.setItem('structural_suite_projects', JSON.stringify(this.projects));
   }
 
+  setupImportExport() {
+    document.getElementById('exportProjBtn')?.addEventListener('click', () => this.exportProjectFile());
+
+    const handleFileImport = (fileInput) => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && imported.id && imported.name) {
+            this.projects[imported.id] = imported;
+            this.saveProjectsToStorage();
+            this.loadProjectState(imported.id);
+            this.closeProjectHub();
+            alert(`✅ Project "${imported.name}" successfully imported!`);
+          } else {
+            alert('⚠️ Invalid project file format.');
+          }
+        } catch(err) {
+          alert('⚠️ Error reading project file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    document.getElementById('hubImportFileInput')?.addEventListener('change', (e) => handleFileImport(e.target));
+    document.getElementById('headerImportFileInput')?.addEventListener('change', (e) => handleFileImport(e.target));
+  }
+
+  exportProjectFile() {
+    if (!this.activeProjectId || !this.projects[this.activeProjectId]) {
+      alert('⚠️ No active project to export.');
+      return;
+    }
+    this.autoSaveActiveProject();
+    const proj = this.projects[this.activeProjectId];
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(proj, null, 2));
+    const downloadAnchor = document.createElement('a');
+    const safeName = proj.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `${safeName}_project.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }
+
   setupProjectHub() {
     const hubOverlay = document.getElementById('projectDashboard');
     const newProjForm = document.getElementById('newProjectForm');
@@ -130,15 +179,24 @@ class StructuralApp {
       if (!name) return;
 
       const projId = 'proj_' + Date.now();
+      const firstMemId = 'mem_1';
+
       const newProj = {
         id: projId,
         name,
         client,
         engineer,
         company,
-        module: startModule,
         createdAt: new Date().toLocaleDateString(),
-        data: {}
+        members: {
+          [firstMemId]: {
+            id: firstMemId,
+            name: "B-1 Main Beam",
+            module: startModule,
+            data: {}
+          }
+        },
+        activeMemberId: firstMemId
       };
 
       this.projects[projId] = newProj;
@@ -151,9 +209,8 @@ class StructuralApp {
       if (name) document.getElementById('rep-project').value = name;
       if (client) document.getElementById('rep-client').value = client;
 
-      this.switchModule(startModule);
+      this.loadProjectState(projId);
       this.closeProjectHub();
-      this.autoSaveActiveProject();
     });
 
     this.renderProjectsListUI();
@@ -182,13 +239,14 @@ class StructuralApp {
 
     projIds.reverse().forEach(id => {
       const proj = this.projects[id];
+      const memCount = proj.members ? Object.keys(proj.members).length : 1;
       const item = document.createElement('div');
       item.className = 'proj-item';
       item.innerHTML = `
         <div style="flex:1;">
           <div style="font-weight:700; font-size:0.95rem;">${proj.name}</div>
           <div style="font-size:0.75rem; color:var(--text-muted);">
-            Module: ${proj.module.toUpperCase()} | Created: ${proj.createdAt} ${proj.client ? '| Client: ' + proj.client : ''}
+            Members: ${memCount} | Created: ${proj.createdAt} ${proj.client ? '| Client: ' + proj.client : ''}
           </div>
         </div>
         <div style="display:flex; gap:0.4rem;">
@@ -223,6 +281,140 @@ class StructuralApp {
     });
   }
 
+  setupMemberManager() {
+    const memberSelect = document.getElementById('memberSelector');
+    const nameInput = document.getElementById('memberNameInput');
+    const addBtn = document.getElementById('addMemberBtn');
+    const delBtn = document.getElementById('deleteMemberBtn');
+
+    memberSelect.addEventListener('change', (e) => {
+      this.switchMember(e.target.value);
+    });
+
+    nameInput.addEventListener('input', (e) => {
+      const proj = this.projects[this.activeProjectId];
+      if (proj && this.activeMemberId && proj.members[this.activeMemberId]) {
+        proj.members[this.activeMemberId].name = e.target.value;
+        this.renderMemberSelectorUI();
+        this.autoSaveActiveProject();
+      }
+    });
+
+    addBtn.addEventListener('click', () => {
+      this.addNewMemberToProject();
+    });
+
+    delBtn.addEventListener('click', () => {
+      this.deleteActiveMember();
+    });
+
+    document.getElementById('transferR1Btn')?.addEventListener('click', () => this.transferReactionToColumn('R1'));
+    document.getElementById('transferR2Btn')?.addEventListener('click', () => this.transferReactionToColumn('R2'));
+  }
+
+  addNewMemberToProject(customName = null, customModule = null, initialData = {}) {
+    const proj = this.projects[this.activeProjectId];
+    if (!proj) return;
+
+    if (!proj.members) proj.members = {};
+    const count = Object.keys(proj.members).length + 1;
+    const memId = 'mem_' + Date.now();
+    const name = customName || `Member M-${count}`;
+    const module = customModule || this.currentModule;
+
+    proj.members[memId] = {
+      id: memId,
+      name,
+      module,
+      data: initialData
+    };
+
+    this.activeMemberId = memId;
+    proj.activeMemberId = memId;
+    this.renderMemberSelectorUI();
+    this.switchMember(memId);
+    this.autoSaveActiveProject();
+  }
+
+  deleteActiveMember() {
+    const proj = this.projects[this.activeProjectId];
+    if (!proj || !proj.members) return;
+
+    const memIds = Object.keys(proj.members);
+    if (memIds.length <= 1) {
+      alert("⚠️ A project must have at least one structural member.");
+      return;
+    }
+
+    if (confirm(`Delete active member "${proj.members[this.activeMemberId].name}"?`)) {
+      delete proj.members[this.activeMemberId];
+      const remainingIds = Object.keys(proj.members);
+      this.switchMember(remainingIds[0]);
+    }
+  }
+
+  switchMember(memId) {
+    const proj = this.projects[this.activeProjectId];
+    if (!proj || !proj.members || !proj.members[memId]) return;
+
+    this.activeMemberId = memId;
+    proj.activeMemberId = memId;
+    const mem = proj.members[memId];
+
+    document.getElementById('memberNameInput').value = mem.name;
+
+    if (mem.data) {
+      this.applyMemberDataToInputs(mem.data);
+    }
+
+    this.switchModule(mem.module || 'steel-beam');
+    this.renderMemberSelectorUI();
+    this.recalculate();
+  }
+
+  renderMemberSelectorUI() {
+    const select = document.getElementById('memberSelector');
+    const proj = this.projects[this.activeProjectId];
+    if (!select || !proj || !proj.members) return;
+
+    select.innerHTML = '';
+    Object.keys(proj.members).forEach(id => {
+      const m = proj.members[id];
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `${m.name} (${m.module.toUpperCase()})`;
+      select.appendChild(opt);
+    });
+
+    if (this.activeMemberId) {
+      select.value = this.activeMemberId;
+    }
+  }
+
+  transferReactionToColumn(supportPoint) {
+    if (!this.lastResult || !this.lastResult.reactions) {
+      alert("⚠️ Please run a beam calculation first to get reaction forces.");
+      return;
+    }
+
+    const r = this.lastResult.reactions;
+    const rxn = r[supportPoint];
+    if (!rxn) return;
+
+    const beamMemName = this.projects[this.activeProjectId]?.members[this.activeMemberId]?.name || "Beam";
+    const colMemName = `Column for ${beamMemName} (${supportPoint})`;
+    const axialLoadKips = rxn.service.toFixed(1);
+
+    const isSteel = this.currentModule === 'steel-beam';
+    const targetModule = isSteel ? 'steel-column' : 'timber';
+
+    this.addNewMemberToProject(colMemName, targetModule, { sc_axial: axialLoadKips });
+
+    document.getElementById('sc-axial').value = axialLoadKips;
+    alert(`⚡ Linked Reaction ${supportPoint} (${axialLoadKips} kips) from "${beamMemName}" to new Column "${colMemName}"!`);
+    this.recalculate();
+  }
+
   loadProjectState(projId) {
     const proj = this.projects[projId];
     if (!proj) return;
@@ -237,36 +429,46 @@ class StructuralApp {
     if (proj.name) document.getElementById('rep-project').value = proj.name;
     if (proj.client) document.getElementById('rep-client').value = proj.client;
 
-    if (proj.data) {
-      const data = proj.data;
-      if (data.sb_family) document.getElementById('sb-family').value = data.sb_family;
-      this.updateBeamShapes();
-      if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
-      if (data.sb_span) document.getElementById('sb-span').value = data.sb_span;
-
-      if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
-      this.updateTimberMembers();
-      if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
-      if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
-      if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
-      if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
-
-      if (data.pointLoads) this.pointLoads = data.pointLoads;
-      if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
+    if (!proj.members || Object.keys(proj.members).length === 0) {
+      const firstId = 'mem_1';
+      proj.members = {
+        [firstId]: { id: firstId, name: "B-1 Main Beam", module: proj.module || 'steel-beam', data: proj.data || {} }
+      };
     }
 
-    this.switchModule(proj.module || 'steel-beam');
-    this.recalculate();
+    const activeId = proj.activeMemberId || Object.keys(proj.members)[0];
+    this.switchMember(activeId);
+  }
+
+  applyMemberDataToInputs(data) {
+    if (data.sb_family) document.getElementById('sb-family').value = data.sb_family;
+    this.updateBeamShapes();
+    if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
+    if (data.sb_span) document.getElementById('sb-span').value = data.sb_span;
+
+    if (data.sc_axial) document.getElementById('sc-axial').value = data.sc_axial;
+
+    if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
+    this.updateTimberMembers();
+    if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
+    if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
+    if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
+    if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
+
+    if (data.pointLoads) this.pointLoads = data.pointLoads;
+    if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
   }
 
   autoSaveActiveProject() {
     if (!this.activeProjectId || !this.projects[this.activeProjectId]) return;
 
+    const proj = this.projects[this.activeProjectId];
     const data = {
       sb_family: document.getElementById('sb-family').value,
       sb_shape: document.getElementById('sb-shape').value,
       sb_span: document.getElementById('sb-span').value,
       sc_shape: document.getElementById('sc-shape').value,
+      sc_axial: document.getElementById('sc-axial').value,
       cf_pdead: document.getElementById('cf-pdead').value,
       rw_height: document.getElementById('rw-height').value,
       tb_family: document.getElementById('tb-family').value,
@@ -279,14 +481,17 @@ class StructuralApp {
       tbPointLoads: this.tbPointLoads
     };
 
-    this.projects[this.activeProjectId].data = data;
-    this.projects[this.activeProjectId].module = this.currentModule;
-    this.projects[this.activeProjectId].engineer = document.getElementById('rep-engineer').value;
-    this.projects[this.activeProjectId].company = document.getElementById('rep-company').value;
-    this.projects[this.activeProjectId].project = document.getElementById('rep-project').value;
-    this.projects[this.activeProjectId].client = document.getElementById('rep-client').value;
+    if (this.activeMemberId && proj.members[this.activeMemberId]) {
+      proj.members[this.activeMemberId].data = data;
+      proj.members[this.activeMemberId].module = this.currentModule;
+    }
 
-    document.getElementById('activeProjName').textContent = this.projects[this.activeProjectId].name;
+    proj.engineer = document.getElementById('rep-engineer').value;
+    proj.company = document.getElementById('rep-company').value;
+    proj.project = document.getElementById('rep-project').value;
+    proj.client = document.getElementById('rep-client').value;
+
+    document.getElementById('activeProjName').textContent = proj.name;
 
     this.saveProjectsToStorage();
   }
@@ -515,13 +720,6 @@ class StructuralApp {
     document.getElementById('optiSteelBeamBtn')?.addEventListener('click', () => this.autoOptimizeSteelBeam());
     document.getElementById('optiSteelColBtn')?.addEventListener('click', () => this.autoOptimizeSteelColumn());
     document.getElementById('optiTimberBtn')?.addEventListener('click', () => this.autoOptimizeTimberBeam());
-
-    document.getElementById('saveProjectBtn').addEventListener('click', () => {
-      this.autoSaveActiveProject();
-      alert(`💾 Active Project "${this.projects[this.activeProjectId]?.name || 'Default'}" saved!`);
-    });
-
-    document.getElementById('loadProjectBtn').addEventListener('click', () => this.openProjectHub());
 
     document.getElementById('sb-family')?.addEventListener('change', () => {
       this.updateBeamShapes();
@@ -801,6 +999,9 @@ class StructuralApp {
     this.lastResult = res;
     this.updateStatus(res.isPass, res.stressRatio * 100);
 
+    const transferContainer = document.getElementById('transferReactionContainer');
+    if (transferContainer) transferContainer.style.display = 'flex';
+
     const totalPointLoad = this.pointLoads.reduce((sum, p) => sum + p.P_dl + p.P_ll, 0);
     const r = res.reactions;
 
@@ -837,6 +1038,9 @@ class StructuralApp {
   }
 
   runSteelColumn() {
+    const transferContainer = document.getElementById('transferReactionContainer');
+    if (transferContainer) transferContainer.style.display = 'none';
+
     const secName = document.getElementById('sc-shape').value;
     const section = getSectionByName(secName);
 
@@ -862,6 +1066,9 @@ class StructuralApp {
   }
 
   runFooting() {
+    const transferContainer = document.getElementById('transferReactionContainer');
+    if (transferContainer) transferContainer.style.display = 'none';
+
     const inputs = {
       P_dead_kips: parseFloat(document.getElementById('cf-pdead').value) || 40,
       P_live_kips: parseFloat(document.getElementById('cf-plive').value) || 25,
@@ -887,6 +1094,9 @@ class StructuralApp {
   }
 
   runRetaining() {
+    const transferContainer = document.getElementById('transferReactionContainer');
+    if (transferContainer) transferContainer.style.display = 'none';
+
     const inputs = {
       wall_height_ft: parseFloat(document.getElementById('rw-height').value) || 10,
       base_width_ft: parseFloat(document.getElementById('rw-base').value) || 6.5,
@@ -938,6 +1148,9 @@ class StructuralApp {
     const res = analyzeTimberBeam(inputs);
     this.lastResult = res;
     this.updateStatus(res.isPass, res.stressRatio * 100);
+
+    const transferContainer = document.getElementById('transferReactionContainer');
+    if (transferContainer) transferContainer.style.display = 'flex';
 
     const r = res.reactions;
 

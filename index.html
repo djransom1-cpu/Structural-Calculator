@@ -44,7 +44,7 @@
         <div class="brand-icon">🏗️</div>
         <div>
           <h1 style="font-family:var(--font-heading); font-size:1.75rem; font-weight:700;">Structural Engineering Project Hub</h1>
-          <p style="color:var(--text-muted); font-size:0.9rem;">Select a saved calculation project or create a new project to start working.</p>
+          <p style="color:var(--text-muted); font-size:0.9rem;">Select a saved project, import a project file, or create a new multi-member project.</p>
         </div>
       </div>
 
@@ -57,7 +57,7 @@
           <form id="newProjectForm" style="display:flex; flex-direction:column; gap:0.85rem;">
             <div class="form-group">
               <label for="newProjName">Project Title / Name *</label>
-              <input type="text" id="newProjName" class="form-control" placeholder="e.g. Oakridge Commercial Header" required>
+              <input type="text" id="newProjName" class="form-control" placeholder="e.g. Oakridge Commercial Expansion" required>
             </div>
             <div class="form-group">
               <label for="newProjClient">Client / Contractor</label>
@@ -85,6 +85,17 @@
             </div>
             <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:0.95rem; margin-top:0.5rem;">🚀 Launch Project & Enable Auto-Save</button>
           </form>
+
+          <hr style="margin:1.25rem 0; border:none; border-top:1px solid var(--panel-border);">
+          
+          <!-- IMPORT FILE BUTTON IN HUB -->
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:0.85rem; color:var(--text-muted);">Have a saved .json project file?</span>
+            <label class="btn btn-outline" style="cursor:pointer; padding:0.4rem 0.8rem; font-size:0.85rem;">
+              📤 Import Project File
+              <input type="file" id="hubImportFileInput" accept=".json,.struct" style="display:none;">
+            </label>
+          </div>
         </div>
 
         <!-- RIGHT: RECENT PROJECTS LIST -->
@@ -112,7 +123,11 @@
 
     <div class="header-actions">
       <button id="openHubBtn" class="btn btn-outline" title="Open Project Manager Dashboard">📁 Projects Hub</button>
-      <button id="saveProjectBtn" class="btn btn-outline" title="Save Calculation Project">💾 Save</button>
+      <button id="exportProjBtn" class="btn btn-outline" title="Export Project to JSON File">📥 Export File</button>
+      <label class="btn btn-outline" title="Import Project JSON File" style="cursor:pointer;">
+        📤 Import File
+        <input type="file" id="headerImportFileInput" accept=".json,.struct" style="display:none;">
+      </label>
       <button id="unitToggleBtn" class="btn btn-outline" title="Switch Imperial / Metric">
         <span id="unitLabel">Imperial (US)</span>
       </button>
@@ -125,6 +140,19 @@
       </button>
     </div>
   </header>
+
+  <!-- MULTI-MEMBER MANAGER BAR IN PROJECT -->
+  <div class="member-bar">
+    <div class="member-bar-left">
+      <span class="member-bar-label">Active Structural Member:</span>
+      <select id="memberSelector" class="form-control" style="max-width:240px; font-weight:600;"></select>
+      <input type="text" id="memberNameInput" class="form-control" placeholder="Rename Member (e.g. B-1 Ridge Beam)" style="max-width:220px;">
+    </div>
+    <div class="member-bar-right">
+      <button id="addMemberBtn" class="btn btn-outline" style="padding:0.4rem 0.75rem; font-size:0.85rem;">➕ Add New Member</button>
+      <button id="deleteMemberBtn" class="btn btn-outline" style="padding:0.4rem 0.65rem; font-size:0.85rem; color:var(--fail-color); border-color:var(--fail-color);">🗑️ Delete Member</button>
+    </div>
+  </div>
 
   <!-- Navigation Tabs for Modules -->
   <nav class="module-nav">
@@ -339,7 +367,7 @@
 
         <div class="form-group">
           <label for="sc-axial">Applied Axial Load ($P_{\text{axial}}$) (kips)</label>
-          <input type="number" id="sc-axial" class="form-control" value="35.0" step="5" min="0">
+          <input type="number" id="sc-axial" class="form-control" value="35.0" step="1" min="0">
         </div>
       </div>
 
@@ -635,6 +663,18 @@
           <div class="utilization-track">
             <div class="utilization-fill" id="utilFill"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- BEAM TO COLUMN REACTION TRANSFER ACTION BAR -->
+      <div id="transferReactionContainer" style="display:none; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:0.75rem 1rem; align-items:center; justify-content:space-between; gap:0.5rem;">
+        <div>
+          <div style="font-weight:700; font-size:0.85rem; color:#10b981;">🏛️ Connect Beam Reactions to Column / Footing Design</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">Transfer left (R1), right (R2), or center (R3) bearing reaction directly into a Column!</div>
+        </div>
+        <div style="display:flex; gap:0.4rem;">
+          <button id="transferR1Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R1 → Column</button>
+          <button id="transferR2Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R2 → Column</button>
         </div>
       </div>
 
