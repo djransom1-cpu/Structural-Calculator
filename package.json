@@ -35,6 +35,7 @@
     "appId": "com.structuralcalc.app",
     "productName": "Structural Engineering Suite",
     "files": [
+      "main.js",
       "index.html",
       "index.css",
       "manifest.json",
