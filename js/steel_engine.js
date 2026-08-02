@@ -1,118 +1,155 @@
 /**
- * Steel Structural Calculation Engine
- * Handles Simply Supported Beams & Axial Column Buckling
- * Supports Tributary Widths, Dead/Live Load separation, ASD & LRFD combinations.
+ * Steel Structural Calculation Engine - Advanced Beam Analysis
+ * Supports:
+ * - Single Span, Cantilever Overhangs, and 2-Span Continuous Beams
+ * - Dynamic Multiple Concentrated Point Loads
+ * - Floor Beam vs Roof Beam vs Plaster Ceiling Presets
+ * - Dead/Live Load separation, ASD/LRFD methods
  */
 
 export const STEEL_CONSTANTS = {
-  E_PSI: 29000000,      // Modulus of Elasticity (psi)
-  E_KSI: 29000,         // Modulus of Elasticity (ksi)
-  DEFAULT_FY_KSI: 50.0, // Grade A992 standard yield strength (ksi)
+  E_PSI: 29000000,
+  E_KSI: 29000,
+  DEFAULT_FY_KSI: 50.0,
 };
 
 /**
- * Perform structural analysis for a steel beam with Tributary Width & Dead/Live load separation
+ * Perform comprehensive analysis for single-span, cantilever, or multi-span steel beams
  */
 export function analyzeSteelBeam(inputs) {
-  const L_ft = inputs.L_ft || 20;
-  const L_in = L_ft * 12;
+  const beamType = inputs.beamType || 'single'; // 'single', 'cantilever', 'two-span'
+  const L1_ft = inputs.L_ft || 20; // Primary span L1 (ft)
+  const L2_ft = inputs.L2_ft || 0; // Secondary span or Cantilever length L2 (ft)
+  const L1_in = L1_ft * 12;
   const section = inputs.section;
   const Fy = inputs.Fy_ksi || STEEL_CONSTANTS.DEFAULT_FY_KSI;
-  const method = inputs.method || 'ASD'; // 'ASD' or 'LRFD'
+  const method = inputs.method || 'ASD';
 
-  // 1. Calculate Distributed Loads from Area Load (PSF) and Tributary Widths
-  const tribLeft_ft = inputs.tribLeft_ft || 0;
-  const tribRight_ft = inputs.tribRight_ft || 0;
-  const totalTrib_ft = tribLeft_ft + tribRight_ft;
-
-  const dl_psf = inputs.dl_psf || 0;
-  const ll_psf = inputs.ll_psf || 0;
-
-  // Convert PSF + Tributary Width to plf (lb/ft) and add beam self-weight
+  // 1. Uniform Distributed Loads
+  const totalTrib_ft = (inputs.tribLeft_ft || 0) + (inputs.tribRight_ft || 0);
   const selfWeight_plf = inputs.includeSelfWeight ? (section.weight || 0) : 0;
   
-  let w_dl_plf = inputs.loadMode === 'direct' 
+  const w_dl_plf = inputs.loadMode === 'direct' 
     ? (inputs.w_dl_plf || 0) + selfWeight_plf
-    : (dl_psf * totalTrib_ft) + selfWeight_plf;
+    : ((inputs.dl_psf || 0) * totalTrib_ft) + selfWeight_plf;
 
-  let w_ll_plf = inputs.loadMode === 'direct'
+  const w_ll_plf = inputs.loadMode === 'direct'
     ? (inputs.w_ll_plf || 0)
-    : (ll_psf * totalTrib_ft);
+    : ((inputs.ll_psf || 0) * totalTrib_ft);
 
-  // Convert to kips/ft (k/ft)
   const w_dl_kft = w_dl_plf / 1000;
   const w_ll_kft = w_ll_plf / 1000;
   const w_service_kft = w_dl_kft + w_ll_kft;
 
-  // Factored Uniform Load (k/ft)
   const w_factored_kft = method === 'LRFD' 
     ? (1.2 * w_dl_kft + 1.6 * w_ll_kft)
     : w_service_kft;
 
-  // 2. Point Loads
-  const P_dl = inputs.P_dl_kips || 0;
-  const P_ll = inputs.P_ll_kips || 0;
-  const P_service = P_dl + P_ll;
-  const P_factored = method === 'LRFD' ? (1.2 * P_dl + 1.6 * P_ll) : P_service;
-  const P_pos_ft = inputs.P_pos_ft !== undefined ? inputs.P_pos_ft : L_ft / 2;
+  // 2. Dynamic Multiple Point Loads
+  // Array of { P_dl, P_ll, pos_ft }
+  const pointLoads = inputs.pointLoads && inputs.pointLoads.length > 0
+    ? inputs.pointLoads
+    : [{ P_dl: inputs.P_dl_kips || 0, P_ll: inputs.P_ll_kips || 0, pos_ft: inputs.P_pos_ft || L1_ft / 2 }];
 
-  // 3. Reactions & Shear Force (kips)
-  // Simple span reactions
-  const R_dl = (w_dl_kft * L_ft) / 2 + P_dl * (1 - P_pos_ft / L_ft);
-  const R_ll = (w_ll_kft * L_ft) / 2 + P_ll * (1 - P_pos_ft / L_ft);
-  const R_factored = (w_factored_kft * L_ft) / 2 + P_factored * (1 - P_pos_ft / L_ft);
-  const V_max_kips = R_factored;
+  let M_point_factored = 0;
+  let V_point_factored = 0;
+  let delta_point_live = 0;
+  let delta_point_total = 0;
 
-  // 4. Maximum Bending Moment (kip-in & kip-ft)
-  // M_uniform = w * L^2 / 8
-  // M_point = P * a * b / L
-  const a = P_pos_ft;
-  const b = L_ft - a;
-  const M_uniform_factored = (w_factored_kft * Math.pow(L_ft, 2) * 12) / 8;
-  const M_point_factored = (P_factored * a * b * 12) / L_ft;
-  const M_max_kipin = M_uniform_factored + M_point_factored;
+  const E = STEEL_CONSTANTS.E_KSI;
+
+  pointLoads.forEach(pt => {
+    const P_d = pt.P_dl || 0;
+    const P_l = pt.P_ll || 0;
+    const P_serv = P_d + P_l;
+    const P_fact = method === 'LRFD' ? (1.2 * P_d + 1.6 * P_l) : P_serv;
+
+    const a = Math.min(Math.max(pt.pos_ft, 0), L1_ft);
+    const b = L1_ft - a;
+
+    if (L1_ft > 0) {
+      M_point_factored += (P_fact * a * b * 12) / L1_ft; // kip-in
+      V_point_factored += P_fact * (b / L1_ft);
+
+      // Deflection contribution
+      delta_point_live += (P_l * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L1_in);
+      delta_point_total += (P_serv * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L1_in);
+    }
+  });
+
+  // 3. Beam Configuration Mechanics (Single, Cantilever, 2-Span)
+  let M_max_kipin = 0;
+  let V_max_kips = 0;
+  let delta_uniform_live = 0;
+  let delta_uniform_total = 0;
+
+  if (beamType === 'single') {
+    // Standard Simply Supported Beam
+    const M_uni_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
+    M_max_kipin = M_uni_fact + M_point_factored;
+    V_max_kips = (w_factored_kft * L1_ft) / 2 + V_point_factored;
+
+    const w_ll_kin = w_ll_kft / 12;
+    const w_serv_kin = w_service_kft / 12;
+    delta_uniform_live = (5 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+    delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+
+  } else if (beamType === 'cantilever') {
+    // Single Span with Overhang Cantilever L2
+    const M_span_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
+    const M_cant_fact = (w_factored_kft * Math.pow(L2_ft, 2) * 12) / 2;
+    M_max_kipin = Math.max(M_span_fact, M_cant_fact) + M_point_factored;
+    V_max_kips = (w_factored_kft * L1_ft) / 2 + w_factored_kft * L2_ft + V_point_factored;
+
+    const w_ll_kin = w_ll_kft / 12;
+    const w_serv_kin = w_service_kft / 12;
+    delta_uniform_live = (5 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+    delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+
+  } else if (beamType === 'two-span') {
+    // 2-Span Continuous Beam over 3 supports (Three Moment Theorem)
+    // Max positive moment ~ 0.07 * w * L^2, Max negative interior moment ~ 0.125 * w * L^2
+    const M_neg_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
+    const M_pos_fact = (0.07 * w_factored_kft * Math.pow(L1_ft, 2) * 12);
+    M_max_kipin = Math.max(M_neg_fact, M_pos_fact) + M_point_factored;
+    V_max_kips = 0.625 * w_factored_kft * L1_ft + V_point_factored;
+
+    const w_ll_kin = w_ll_kft / 12;
+    const w_serv_kin = w_service_kft / 12;
+    // Continuous beam deflection is approx 40% of simply supported deflection
+    delta_uniform_live = (2 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+    delta_uniform_total = (2 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+  }
+
   const M_max_kipft = M_max_kipin / 12;
 
-  // 5. Stress Checks (ASD vs LRFD)
+  // 4. Stress Checks (ASD vs LRFD)
   let bendingStress_ksi = 0;
   let allowableStress_ksi = 0;
   let stressRatio = 0;
 
   if (method === 'ASD') {
     bendingStress_ksi = M_max_kipin / section.Sx;
-    allowableStress_ksi = 0.66 * Fy; // AISC ASD compact allowable
+    allowableStress_ksi = 0.66 * Fy;
     stressRatio = bendingStress_ksi / allowableStress_ksi;
   } else {
-    // LRFD Flexural Strength Mn = Fy * Zx (approx 1.1 * Sx for W shapes)
     const Zx = section.Sx * 1.1;
     const Mn_kipin = Fy * Zx;
     const phiMn_kipft = (0.90 * Mn_kipin) / 12;
-    bendingStress_ksi = M_max_kipft; // Use Mu (kip-ft)
-    allowableStress_ksi = phiMn_kipft; // Use phiMn (kip-ft)
+    bendingStress_ksi = M_max_kipft;
+    allowableStress_ksi = phiMn_kipft;
     stressRatio = M_max_kipft / phiMn_kipft;
   }
 
-  // 6. Deflection Analysis (Service Loads ONLY)
-  const E = STEEL_CONSTANTS.E_KSI; // 29,000 ksi
-  const w_ll_kin = w_ll_kft / 12;
-  const w_service_kin = w_service_kft / 12;
+  // 5. Deflection Totals
+  const delta_live_in = delta_uniform_live + delta_point_live;
+  const delta_total_in = delta_uniform_total + delta_point_total;
 
-  // Live Load Deflection (in)
-  const delta_ll_uniform = (5 * w_ll_kin * Math.pow(L_in, 4)) / (384 * E * section.Ix);
-  const delta_ll_point = (P_ll * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L_in);
-  const delta_live_in = delta_ll_uniform + delta_ll_point;
-
-  // Total Load Deflection (in)
-  const delta_tot_uniform = (5 * w_service_kin * Math.pow(L_in, 4)) / (384 * E * section.Ix);
-  const delta_tot_point = (P_service * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L_in);
-  const delta_total_in = delta_tot_uniform + delta_tot_point;
-
-  // Code Deflection Limits
   const limitLiveDivider = inputs.deflectLimitLive || 360;
   const limitTotalDivider = inputs.deflectLimitTotal || 240;
 
-  const L360_in = L_in / limitLiveDivider;
-  const L240_in = L_in / limitTotalDivider;
+  const L360_in = L1_in / limitLiveDivider;
+  const L240_in = L1_in / limitTotalDivider;
 
   const passLiveDeflect = delta_live_in <= L360_in;
   const passTotalDeflect = delta_total_in <= L240_in;
@@ -120,18 +157,16 @@ export function analyzeSteelBeam(inputs) {
   const isPass = passStress && passLiveDeflect && passTotalDeflect;
 
   return {
+    beamType,
     method,
-    L_ft,
+    L_ft: L1_ft,
+    L2_ft,
     totalTrib_ft,
-    tribLeft_ft,
-    tribRight_ft,
     w_dl_plf,
     w_ll_plf,
     w_service_kft,
     w_factored_kft,
-    P_dl,
-    P_ll,
-    P_pos_ft,
+    pointLoads,
     V_max_kips,
     M_max_kipft,
     M_max_kipin,

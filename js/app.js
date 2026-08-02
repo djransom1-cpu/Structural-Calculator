@@ -14,12 +14,16 @@ class StructuralApp {
     this.currentModule = 'steel-beam';
     this.unitSystem = 'imperial';
     this.renderer = null;
+    this.pointLoads = [
+      { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
+    ];
 
     this.init();
   }
 
   init() {
     this.populateSelects();
+    this.renderPointLoadsUI();
     this.setupEventListeners();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
@@ -62,6 +66,69 @@ class StructuralApp {
     });
   }
 
+  renderPointLoadsUI() {
+    const container = document.getElementById('pointLoadsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    this.pointLoads.forEach((pt, idx) => {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      row.style.alignItems = 'center';
+      row.innerHTML = `
+        <div style="flex:1;">
+          <input type="number" class="form-control pt-pdl" data-idx="${idx}" value="${pt.P_dl}" placeholder="P_DL (k)" step="0.5" min="0">
+        </div>
+        <div style="flex:1;">
+          <input type="number" class="form-control pt-pll" data-idx="${idx}" value="${pt.P_ll}" placeholder="P_LL (k)" step="0.5" min="0">
+        </div>
+        <div style="flex:1;">
+          <input type="number" class="form-control pt-pos" data-idx="${idx}" value="${pt.pos_ft}" placeholder="Pos a (ft)" step="0.5" min="0">
+        </div>
+        <div>
+          <button class="btn btn-outline remove-pt-btn" data-idx="${idx}" style="padding:0.4rem 0.6rem; color:var(--fail-color); border-color:var(--fail-color);">&times;</button>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+
+    // Attach listeners for dynamic point loads
+    container.querySelectorAll('.pt-pdl').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.pointLoads[idx].P_dl = parseFloat(e.target.value) || 0;
+        this.recalculate();
+      });
+    });
+
+    container.querySelectorAll('.pt-pll').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.pointLoads[idx].P_ll = parseFloat(e.target.value) || 0;
+        this.recalculate();
+      });
+    });
+
+    container.querySelectorAll('.pt-pos').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.pointLoads[idx].pos_ft = parseFloat(e.target.value) || 0;
+        this.recalculate();
+      });
+    });
+
+    container.querySelectorAll('.remove-pt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        if (this.pointLoads.length > 1) {
+          this.pointLoads.splice(idx, 1);
+          this.renderPointLoadsUI();
+          this.recalculate();
+        }
+      });
+    });
+  }
+
   setupEventListeners() {
     // Nav Module Tab switching
     document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -70,6 +137,68 @@ class StructuralApp {
         this.switchModule(targetModule);
       });
     });
+
+    // Preset Listener
+    const presetSelect = document.getElementById('sb-preset');
+    if (presetSelect) {
+      presetSelect.addEventListener('change', () => {
+        const val = presetSelect.value;
+        if (val === 'floor') {
+          document.getElementById('sb-dl').value = 15;
+          document.getElementById('sb-ll').value = 40;
+          document.getElementById('sb-deflect-live').value = "360";
+          document.getElementById('sb-deflect-total').value = "240";
+        } else if (val === 'roof') {
+          document.getElementById('sb-dl').value = 15;
+          document.getElementById('sb-ll').value = 20;
+          document.getElementById('sb-deflect-live').value = "240";
+          document.getElementById('sb-deflect-total').value = "180";
+        } else if (val === 'plaster') {
+          document.getElementById('sb-dl').value = 15;
+          document.getElementById('sb-ll').value = 20;
+          document.getElementById('sb-deflect-live').value = "480";
+          document.getElementById('sb-deflect-total').value = "360";
+        } else if (val === 'commercial') {
+          document.getElementById('sb-dl').value = 25;
+          document.getElementById('sb-ll').value = 100;
+          document.getElementById('sb-deflect-live').value = "360";
+          document.getElementById('sb-deflect-total').value = "240";
+        }
+        this.recalculate();
+      });
+    }
+
+    // Beam Type Listener (Single vs Cantilever vs 2-Span)
+    const beamTypeSelect = document.getElementById('sb-beam-type');
+    if (beamTypeSelect) {
+      beamTypeSelect.addEventListener('change', () => {
+        const type = beamTypeSelect.value;
+        const groupSpan2 = document.getElementById('group-span2');
+        const labelSpan2 = document.getElementById('label-span2');
+
+        if (type === 'single') {
+          groupSpan2.style.display = 'none';
+        } else if (type === 'cantilever') {
+          groupSpan2.style.display = 'block';
+          labelSpan2.textContent = "Cantilever Overhang L2 (ft)";
+        } else if (type === 'two-span') {
+          groupSpan2.style.display = 'block';
+          labelSpan2.textContent = "Span 2 L2 (ft)";
+        }
+        this.recalculate();
+      });
+    }
+
+    // Add Point Load Button Listener
+    const addPtBtn = document.getElementById('addPointLoadBtn');
+    if (addPtBtn) {
+      addPtBtn.addEventListener('click', () => {
+        const L = parseFloat(document.getElementById('sb-span').value) || 20;
+        this.pointLoads.push({ P_dl: 1.0, P_ll: 2.0, pos_ft: L / 2 });
+        this.renderPointLoadsUI();
+        this.recalculate();
+      });
+    }
 
     // Steel Load Mode Toggle Listener
     const loadModeSelect = document.getElementById('sb-load-mode');
@@ -83,11 +212,10 @@ class StructuralApp {
       });
     }
 
-    // Input Change Listeners
+    // General Input Change Listeners
     const inputIds = [
-      'sb-shape', 'sb-method', 'sb-span', 'sb-fy', 'sb-load-mode',
-      'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll',
-      'sb-p-dl', 'sb-p-ll', 'sb-p-pos', 'sb-selfweight',
+      'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
+      'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
       'sb-deflect-live', 'sb-deflect-total',
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
       'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
@@ -162,19 +290,18 @@ class StructuralApp {
     const section = getSectionByName(secName);
 
     const inputs = {
+      beamType: document.getElementById('sb-beam-type').value,
       method: document.getElementById('sb-method').value,
       loadMode: document.getElementById('sb-load-mode').value,
       L_ft: parseFloat(document.getElementById('sb-span').value) || 20,
-      Fy_ksi: parseFloat(document.getElementById('sb-fy').value) || 50,
+      L2_ft: parseFloat(document.getElementById('sb-span2').value) || 0,
       tribLeft_ft: parseFloat(document.getElementById('sb-trib-left').value) || 0,
       tribRight_ft: parseFloat(document.getElementById('sb-trib-right').value) || 0,
       dl_psf: parseFloat(document.getElementById('sb-dl').value) || 0,
       ll_psf: parseFloat(document.getElementById('sb-ll').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
-      P_dl_kips: parseFloat(document.getElementById('sb-p-dl').value) || 0,
-      P_ll_kips: parseFloat(document.getElementById('sb-p-ll').value) || 0,
-      P_pos_ft: parseFloat(document.getElementById('sb-p-pos').value) || 10,
+      pointLoads: this.pointLoads,
       includeSelfWeight: document.getElementById('sb-selfweight').checked,
       deflectLimitLive: parseFloat(document.getElementById('sb-deflect-live').value) || 360,
       deflectLimitTotal: parseFloat(document.getElementById('sb-deflect-total').value) || 240,
@@ -184,26 +311,25 @@ class StructuralApp {
     const res = analyzeSteelBeam(inputs);
     this.updateStatus(res.isPass, res.stressRatio * 100);
 
-    const loadDesc = inputs.loadMode === 'tributary' 
-      ? `Trib: ${res.totalTrib_ft} ft (${inputs.tribLeft_ft}' + ${inputs.tribRight_ft}')`
-      : `Line Load: ${res.w_dl_plf.toFixed(0)} DL + ${res.w_ll_plf.toFixed(0)} LL plf`;
+    const totalPointLoad = this.pointLoads.reduce((sum, p) => sum + p.P_dl + p.P_ll, 0);
 
     const stressLabel = res.method === 'ASD' ? 'Bending Stress \u03C3' : 'Factored Moment Mu';
     const stressVal = res.method === 'ASD' ? `${res.bendingStress_ksi.toFixed(2)} ksi` : `${res.M_max_kipft.toFixed(1)} kip-ft`;
     const stressSub = res.method === 'ASD' ? `Allowable: ${res.allowableStress_ksi.toFixed(2)} ksi` : `Capacity \u03C6Mn: ${res.allowableStress_ksi.toFixed(1)} kip-ft`;
 
     this.renderMetrics([
-      { label: "Section & Loads", val: res.sectionName, sub: loadDesc },
-      { label: "Uniform Load w_total", val: `${(res.w_service_kft * 1000).toFixed(0)} plf`, sub: `Factored w_u: ${(res.w_factored_kft * 1000).toFixed(0)} plf (${res.method})` },
+      { label: "Section & Type", val: res.sectionName, sub: `Config: ${res.beamType.toUpperCase()}` },
+      { label: "Uniform Load w", val: `${(res.w_service_kft * 1000).toFixed(0)} plf`, sub: `Factored: ${(res.w_factored_kft * 1000).toFixed(0)} plf` },
+      { label: "Point Loads", val: `${totalPointLoad.toFixed(1)} kips`, sub: `${this.pointLoads.length} load location(s)` },
       { label: stressLabel, val: stressVal, sub: stressSub },
-      { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit L/360: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
-      { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit L/240: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
+      { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
+      { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
     ]);
 
     // Canvas Diagram
     this.renderer.renderBeamAnalysis({
       w_kft: res.w_service_kft,
-      P_kips: res.P_dl + res.P_ll,
+      P_kips: totalPointLoad,
       L_ft: res.L_ft,
       V_max_kips: res.V_max_kips,
       M_max_kipft: res.M_max_kipft,

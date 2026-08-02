@@ -69,12 +69,43 @@
       <!-- STEEL BEAM MODULE -->
       <div id="mod-steel-beam" class="module-content active">
         <h2 class="module-title">Steel Beam Analysis</h2>
-        <p class="module-desc">Tributary width loading, Dead/Live load separation, ASD/LRFD methods, and deflection checks.</p>
+        <p class="module-desc">Supports Floor/Roof Presets, Cantilevers, 2-Span Continuous Beams & Multiple Point Loads.</p>
         
+        <!-- Preset Selector -->
+        <div class="form-group">
+          <label for="sb-preset">Beam Application Preset</label>
+          <select id="sb-preset" class="form-control">
+            <option value="custom">Custom Configuration</option>
+            <option value="floor">🏠 Floor Beam / Joist (40 LL / 15 DL, L/360 Live, L/240 Total)</option>
+            <option value="roof">🏔️ Roof Beam / Rafter (20 LL / 15 DL, L/240 Live, L/180 Total)</option>
+            <option value="plaster">🏛️ Plaster Ceiling Header (20 LL / 15 DL, L/480 Live, L/360 Total)</option>
+            <option value="commercial">🏢 Commercial Assembly (100 LL / 25 DL, L/360 Live, L/240 Total)</option>
+          </select>
+        </div>
+
         <div class="form-row">
+          <div class="form-group">
+            <label for="sb-beam-type">Span & Support Type</label>
+            <select id="sb-beam-type" class="form-control">
+              <option value="single">Single Span (Simply Supported)</option>
+              <option value="cantilever">Single Span + Cantilever Overhang</option>
+              <option value="two-span">2-Span Continuous Beam (3 Supports)</option>
+            </select>
+          </div>
           <div class="form-group">
             <label for="sb-shape">AISC Section Shape</label>
             <select id="sb-shape" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-span">Main Span $L_1$ (ft)</label>
+            <input type="number" id="sb-span" class="form-control" value="20" step="0.5" min="1">
+          </div>
+          <div class="form-group" id="group-span2" style="display:none;">
+            <label for="sb-span2" id="label-span2">Cantilever / Span 2 $L_2$ (ft)</label>
+            <input type="number" id="sb-span2" class="form-control" value="5" step="0.5" min="0">
           </div>
           <div class="form-group">
             <label for="sb-method">Design Method</label>
@@ -85,24 +116,9 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="sb-span">Span Length (L) (ft)</label>
-            <input type="number" id="sb-span" class="form-control" value="20" step="0.5" min="1">
-          </div>
-          <div class="form-group">
-            <label for="sb-fy">Steel Grade ($F_y$)</label>
-            <select id="sb-fy" class="form-control">
-              <option value="50">A992 (50 ksi)</option>
-              <option value="36">A36 (36 ksi)</option>
-              <option value="46">HSS A500 Gr B (46 ksi)</option>
-            </select>
-          </div>
-        </div>
-
         <!-- Load Mode Selector -->
         <div class="form-group">
-          <label for="sb-load-mode">Load Application Mode</label>
+          <label for="sb-load-mode">Uniform Load Mode</label>
           <select id="sb-load-mode" class="form-control">
             <option value="tributary">Area Load (PSF) + Tributary Widths (ft)</option>
             <option value="direct">Direct Line Load (plf or k/ft)</option>
@@ -125,54 +141,47 @@
         <div class="form-row">
           <div class="form-group">
             <label for="sb-dl" id="label-dl">Dead Load (DL) (psf)</label>
-            <input type="number" id="sb-dl" class="form-control" value="20" step="5" min="0">
+            <input type="number" id="sb-dl" class="form-control" value="15" step="5" min="0">
           </div>
           <div class="form-group">
             <label for="sb-ll" id="label-ll">Live Load (LL) (psf)</label>
-            <input type="number" id="sb-ll" class="form-control" value="50" step="5" min="0">
+            <input type="number" id="sb-ll" class="form-control" value="40" step="5" min="0">
           </div>
         </div>
 
-        <!-- Point Loads (Dead & Live) -->
-        <div class="form-row">
-          <div class="form-group">
-            <label for="sb-p-dl">Point Dead Load ($P_{DL}$) (kips)</label>
-            <input type="number" id="sb-p-dl" class="form-control" value="1.5" step="0.5" min="0">
+        <!-- Dynamic Point Loads Container -->
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+            <label style="margin:0;">Concentrated Point Loads</label>
+            <button id="addPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
           </div>
-          <div class="form-group">
-            <label for="sb-p-ll">Point Live Load ($P_{LL}$) (kips)</label>
-            <input type="number" id="sb-p-ll" class="form-control" value="3.0" step="0.5" min="0">
+          <div id="pointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;">
+            <!-- Point load rows inserted dynamically by app.js -->
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="sb-p-pos">Point Load Location ($a$) (ft)</label>
-            <input type="number" id="sb-p-pos" class="form-control" value="10" step="0.5" min="0">
-          </div>
-          <div class="form-group" style="display:flex; align-items:center; margin-top:1.2rem;">
-            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-              <input type="checkbox" id="sb-selfweight" checked> Include Beam Self-Weight
-            </label>
-          </div>
+        <div class="form-group" style="display:flex; align-items:center;">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+            <input type="checkbox" id="sb-selfweight" checked> Include Beam Self-Weight
+          </label>
         </div>
 
         <!-- Deflection Limits -->
         <div class="form-row">
           <div class="form-group">
-            <label for="sb-deflect-live">Live Load Limit ($\delta_{LL}$)</label>
+            <label for="sb-deflect-live">Live Load Deflection ($\delta_{LL}$)</label>
             <select id="sb-deflect-live" class="form-control">
-              <option value="360">L / 360 (Standard)</option>
-              <option value="480">L / 480 (Plaster / Brittle)</option>
+              <option value="360">L / 360 (Standard Floor)</option>
               <option value="240">L / 240 (Roof)</option>
+              <option value="480">L / 480 (Plaster / Brittle)</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="sb-deflect-total">Total Load Limit ($\delta_{TL}$)</label>
+            <label for="sb-deflect-total">Total Load Deflection ($\delta_{TL}$)</label>
             <select id="sb-deflect-total" class="form-control">
-              <option value="240">L / 240 (Standard)</option>
+              <option value="240">L / 240 (Standard Floor)</option>
+              <option value="180">L / 180 (Roof)</option>
               <option value="360">L / 360 (Plaster / Strict)</option>
-              <option value="180">L / 180 (Industrial Roof)</option>
             </select>
           </div>
         </div>
