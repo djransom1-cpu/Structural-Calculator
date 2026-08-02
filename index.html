@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
-  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, and Timber Framing.">
+  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, and Timber Framing with ASCE 7 Wind Uplift.">
   <title>Structural Engineering Calculator & Estimator</title>
   
   <!-- PWA Manifest -->
@@ -186,7 +186,7 @@
           <h2 class="module-title" style="margin:0;">Steel Beam Analysis</h2>
           <button id="optiSteelBeamBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Shape</button>
         </div>
-        <p class="module-desc">Supports Asymmetric Side A / Side B Loads, Cantilevers, 2-Span Beams & Point Loads.</p>
+        <p class="module-desc">Supports Wind Uplift (ASCE 7), Asymmetric Side A/B Loads, Cantilevers, & Point Loads.</p>
         
         <!-- Preset Selector -->
         <div class="form-group">
@@ -194,7 +194,7 @@
           <select id="sb-preset" class="form-control">
             <option value="custom">Custom Configuration</option>
             <option value="floor">🏠 Floor Beam / Joist (40 LL / 15 DL, L/360 Live, L/240 Total)</option>
-            <option value="roof">🏔️ Roof Beam / Rafter (20 LL / 15 DL, L/240 Live, L/180 Total)</option>
+            <option value="roof">🏔️ Roof Beam / Rafter (20 LL / 15 DL, 16 Wind Uplift, L/240 Live)</option>
             <option value="plaster">🏛️ Plaster Ceiling Header (20 LL / 15 DL, L/480 Live, L/360 Total)</option>
             <option value="commercial">🏢 Commercial Assembly (100 LL / 25 DL, L/360 Live, L/240 Total)</option>
           </select>
@@ -267,9 +267,9 @@
           </select>
         </div>
 
-        <!-- ASYMMETRIC TRIBUTARY LOADS (SIDE A vs SIDE B) FOR STEEL -->
+        <!-- ASYMMETRIC TRIBUTARY LOADS + WIND UPLIFT FOR STEEL -->
         <div id="group-trib" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
-          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Asymmetric Side A & Side B Load Inputs</div>
+          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Side A, Side B & Wind Uplift Loads</div>
           
           <!-- SIDE A (LEFT TRIBUTARY) -->
           <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
@@ -302,6 +302,14 @@
               <input type="number" id="sb-ll-right" class="form-control" value="40" step="5" min="0">
             </div>
           </div>
+
+          <!-- WIND UPLIFT LOAD CONTROL -->
+          <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);">
+            <div class="form-group">
+              <label for="sb-wind-psf" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Load W (psf)</label>
+              <input type="number" id="sb-wind-psf" class="form-control" value="0" step="5" min="0" placeholder="e.g. 16 psf suction">
+            </div>
+          </div>
         </div>
 
         <!-- DIRECT LINE LOAD INPUTS (FOR DIRECT MODE) -->
@@ -313,6 +321,10 @@
           <div class="form-group">
             <label for="sb-ll" id="label-ll">Live Load (LL) (plf)</label>
             <input type="number" id="sb-ll" class="form-control" value="480" step="10" min="0">
+          </div>
+          <div class="form-group">
+            <label for="sb-wind-plf" style="color:var(--fail-color);">🌪️ Wind Net Uplift W (plf)</label>
+            <input type="number" id="sb-wind-plf" class="form-control" value="0" step="10" min="0">
           </div>
         </div>
 
@@ -352,13 +364,13 @@
         </div>
       </div>
 
-      <!-- STEEL COLUMN MODULE -->
+      <!-- STEEL COLUMN MODULE WITH WIND UPLIFT TENSION -->
       <div id="mod-steel-column" class="module-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
-          <h2 class="module-title" style="margin:0;">Steel Column Buckling</h2>
+          <h2 class="module-title" style="margin:0;">Steel Column Buckling & Uplift</h2>
           <button id="optiSteelColBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Column</button>
         </div>
-        <p class="module-desc">Euler critical buckling load & AISC slenderness check ($KL/r$).</p>
+        <p class="module-desc">Euler buckling ($KL/r$) & ASCE 7 Wind Uplift Net Tension Check.</p>
         
         <div class="form-row">
           <div class="form-group">
@@ -391,16 +403,22 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="sc-axial">Applied Axial Load ($P_{\text{axial}}$) (kips)</label>
-          <input type="number" id="sc-axial" class="form-control" value="35.0" step="1" min="0">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sc-axial">Applied Gravity Load ($P_{\text{axial}}$) (kips)</label>
+            <input type="number" id="sc-axial" class="form-control" value="35.0" step="1" min="0">
+          </div>
+          <div class="form-group">
+            <label for="sc-wind-uplift" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Tension $P_{\text{uplift}}$ (kips)</label>
+            <input type="number" id="sc-wind-uplift" class="form-control" value="0.0" step="1" min="0" placeholder="e.g. 5.0 kips tension">
+          </div>
         </div>
       </div>
 
-      <!-- CONCRETE FOOTING MODULE WITH PAD FOOTING DIMENSIONS & COLUMN PEDESTAL INPUTS -->
+      <!-- CONCRETE FOOTING MODULE WITH WIND UPLIFT BALLAST CHECK -->
       <div id="mod-footing" class="module-content">
-        <h2 class="module-title">Concrete Column Footing Pad</h2>
-        <p class="module-desc">Supports Pad Footings with independent Side 1 & Side 2 dimensions, Pad Thickness, and Column Pedestal.</p>
+        <h2 class="module-title">Concrete Column Pad Footing & Uplift</h2>
+        <p class="module-desc">Pad Footing sizing, ACI 318 rebar, & ASCE 7 Wind Uplift Ballast / Hold-Down Check.</p>
         
         <div class="form-row">
           <div class="form-group">
@@ -410,6 +428,10 @@
           <div class="form-group">
             <label for="cf-plive">Live Load ($P_{\text{live}}$) (kips)</label>
             <input type="number" id="cf-plive" class="form-control" value="25" step="5" min="0">
+          </div>
+          <div class="form-group">
+            <label for="cf-puplift" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Uplift Tension ($W_{\text{uplift}}$) (kips)</label>
+            <input type="number" id="cf-puplift" class="form-control" value="0" step="2" min="0" placeholder="e.g. 10 kips uplift">
           </div>
         </div>
 
@@ -491,7 +513,7 @@
                 <option value="4">4" o.c.</option>
                 <option value="6">6" o.c.</option>
                 <option value="8">8" o.c.</option>
-                <option value="10">10" o.c.</option>
+                <option value="10">10" o.c me</option>
                 <option value="12" selected>12" o.c.</option>
                 <option value="14">14" o.c.</option>
                 <option value="16">16" o.c.</option>
@@ -536,13 +558,13 @@
         </div>
       </div>
 
-      <!-- TIMBER MODULE WITH ASYMMETRIC SIDE A / SIDE B LOADS -->
+      <!-- TIMBER MODULE WITH ASYMMETRIC SIDE A / SIDE B LOADS + WIND UPLIFT -->
       <div id="mod-timber" class="module-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
           <h2 class="module-title" style="margin:0;">Timber & Engineered Wood Analysis</h2>
           <button id="optiTimberBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Wood</button>
         </div>
-        <p class="module-desc">Supports Asymmetric Side A / Side B Loads, Built-Up Headers, Cantilevers & NDS ASD/LRFD.</p>
+        <p class="module-desc">Supports Wind Uplift (ASCE 7), Built-Up Headers, Cantilevers & NDS ASD/LRFD.</p>
         
         <!-- Preset Selector -->
         <div class="form-group">
@@ -550,7 +572,7 @@
           <select id="tb-preset" class="form-control">
             <option value="custom">Custom Configuration</option>
             <option value="floor">🏠 Residential Floor Joist (40 LL / 10 DL, L/360 Live, L/240 Total)</option>
-            <option value="roof">🏔️ Roof Rafter / Beam (20 LL / 15 DL, L/240 Live, L/180 Total)</option>
+            <option value="roof">🏔️ Roof Rafter / Beam (20 LL / 15 DL, 16 Wind Uplift, L/240 Live)</option>
             <option value="header">🚪 Window / Door Header (50 LL / 15 DL, L/360 Live, L/240 Total)</option>
             <option value="deck">🌲 Exterior Deck Joist (50 LL / 10 DL, L/360 Live, L/240 Total)</option>
           </select>
@@ -656,9 +678,9 @@
           </select>
         </div>
 
-        <!-- ASYMMETRIC TRIBUTARY LOADS (SIDE A vs SIDE B) FOR WOOD -->
+        <!-- ASYMMETRIC TRIBUTARY LOADS + WIND UPLIFT FOR WOOD -->
         <div id="tb-group-trib" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
-          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Asymmetric Side A & Side B Load Inputs</div>
+          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Side A, Side B & Wind Uplift Loads</div>
           
           <!-- SIDE A (LEFT TRIBUTARY) -->
           <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
@@ -691,6 +713,14 @@
               <input type="number" id="tb-ll-right" class="form-control" value="40" step="5" min="0">
             </div>
           </div>
+
+          <!-- WIND UPLIFT LOAD CONTROL FOR WOOD -->
+          <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);">
+            <div class="form-group">
+              <label for="tb-wind-psf" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Load W (psf)</label>
+              <input type="number" id="tb-wind-psf" class="form-control" value="0" step="5" min="0" placeholder="e.g. 16 psf suction">
+            </div>
+          </div>
         </div>
 
         <!-- DIRECT LINE LOAD INPUTS (FOR WOOD DIRECT MODE) -->
@@ -702,6 +732,10 @@
           <div class="form-group">
             <label for="tb-ll" id="tb-label-ll">Live Load (LL) (plf)</label>
             <input type="number" id="tb-ll" class="form-control" value="120" step="10" min="0">
+          </div>
+          <div class="form-group">
+            <label for="tb-wind-plf" style="color:var(--fail-color);">🌪️ Wind Net Uplift W (plf)</label>
+            <input type="number" id="tb-wind-plf" class="form-control" value="0" step="10" min="0">
           </div>
         </div>
 

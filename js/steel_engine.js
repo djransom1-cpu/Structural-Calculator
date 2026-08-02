@@ -1,7 +1,7 @@
 /**
  * Steel Design Calculation Engine (AISC 15th Edition ASD / LRFD)
- * Calculates asymmetric Side A / Side B tributary loads, unbraced length (Lb),
- * bending moments, shear forces, deflections, and support reaction forces (R1, R2, R3).
+ * Includes ASCE 7 / IBC Wind Net Uplift Combinations (0.6D - 0.6W ASD / 0.9D - 1.0W LRFD)
+ * and Net Uplift Reaction Forces (R1_uplift, R2_uplift).
  */
 
 import { AISC_DATABASE } from './aisc_database.js';
@@ -15,17 +15,18 @@ export function analyzeSteelBeam(inputs) {
   const Fy = inputs.Fy || 50;
 
   const section = inputs.section || AISC_DATABASE[0];
-
   const selfWeight_plf = inputs.includeSelfWeight !== false ? (section.weight || 0) : 0;
   
   let w_dl_plf = 0;
   let w_ll_plf = 0;
+  let w_wind_uplift_plf = 0;
 
   if (inputs.loadMode === 'direct') {
     w_dl_plf = (inputs.w_dl_plf || 0) + selfWeight_plf;
     w_ll_plf = (inputs.w_ll_plf || 0);
+    w_wind_uplift_plf = (inputs.w_wind_plf || 0);
   } else {
-    // Asymmetric Side A (Left) & Side B (Right) Tributary Loads
+    // Asymmetric Side A (Left) & Side B (Right) Tributary Loads + Wind
     const tribLeft_ft = inputs.tribLeft_ft || 0;
     const tribRight_ft = inputs.tribRight_ft || 0;
     const dlLeft_psf = inputs.dlLeft_psf !== undefined ? inputs.dlLeft_psf : (inputs.dl_psf || 0);
@@ -35,10 +36,28 @@ export function analyzeSteelBeam(inputs) {
 
     w_dl_plf = (dlLeft_psf * tribLeft_ft) + (dlRight_psf * tribRight_ft) + selfWeight_plf;
     w_ll_plf = (llLeft_psf * tribLeft_ft) + (llRight_psf * tribRight_ft);
+
+    const wind_psf = inputs.wind_psf || 0;
+    w_wind_uplift_plf = wind_psf * ((tribLeft_ft + tribRight_ft) / 2);
   }
 
+  // Service Gravity Load
   const w_service_plf = w_dl_plf + w_ll_plf;
   const w_service_kft = w_service_plf / 1000;
+
+  // ASCE 7 Wind Uplift Combinations
+  // ASD Combo: 0.6 D - 0.6 W
+  // LRFD Combo: 0.9 D - 1.0 W
+  let w_net_uplift_plf = 0;
+  if (w_wind_uplift_plf > 0) {
+    if (method === 'ASD') {
+      w_net_uplift_plf = (0.6 * w_wind_uplift_plf) - (0.6 * w_dl_plf);
+    } else {
+      w_net_uplift_plf = (1.0 * w_wind_uplift_plf) - (0.9 * w_dl_plf);
+    }
+  }
+  const isNetUplift = w_net_uplift_plf > 0;
+  const w_net_uplift_kft = Math.max(0, w_net_uplift_plf) / 1000;
 
   const w_factored_plf = (1.2 * w_dl_plf) + (1.6 * w_ll_plf);
   const w_factored_kft = w_factored_plf / 1000;
@@ -58,7 +77,6 @@ export function analyzeSteelBeam(inputs) {
 
   const E = 29000; // Steel Modulus of Elasticity (ksi)
 
-  // Asymmetric Reaction Math for Beam Supports
   if (beamType === 'single') {
     R1_dl_kips += (w_dl_plf * L1_ft / 1000) / 2;
     R2_dl_kips += (w_dl_plf * L1_ft / 1000) / 2;
@@ -83,7 +101,6 @@ export function analyzeSteelBeam(inputs) {
     R3_ll_kips += 0.375 * (w_ll_plf * (L2_ft || L1_ft) / 1000);
   }
 
-  // Point Load Contributions (Asymmetric P * b / L vs P * a / L)
   pointLoads.forEach(pt => {
     const P_d = pt.P_dl || 0;
     const P_l = pt.P_ll || 0;
@@ -110,11 +127,15 @@ export function analyzeSteelBeam(inputs) {
   const R2_service_kips = R2_dl_kips + R2_ll_kips;
   const R3_service_kips = R3_dl_kips + R3_ll_kips;
 
+  // Net Uplift Reaction Forces (ASCE 7 Tension Uplift at Bearing Points)
+  const R1_uplift_kips = Math.max(0, (w_net_uplift_plf * L1_ft / 1000) / 2);
+  const R2_uplift_kips = Math.max(0, (w_net_uplift_plf * L1_ft / 1000) / 2);
+
   const R1_factored_kips = (1.2 * R1_dl_kips) + (1.6 * R1_ll_kips);
   const R2_factored_kips = (1.2 * R2_dl_kips) + (1.6 * R2_ll_kips);
   const R3_factored_kips = (1.2 * R3_dl_kips) + (1.6 * R3_ll_kips);
 
-  const w_use_kft = method === 'ASD' ? w_service_kft : w_factored_kft;
+  const w_use_kft = isNetUplift ? w_net_uplift_kft : (method === 'ASD' ? w_service_kft : w_factored_kft);
   let M_max_kipft = (w_use_kft * Math.pow(L1_ft, 2)) / 8 + (M_point_kipin / 12);
   let V_max_kips = Math.max(R1_service_kips, R2_service_kips, R3_service_kips);
 
@@ -125,10 +146,10 @@ export function analyzeSteelBeam(inputs) {
   let stressRatio = 0;
 
   if (method === 'ASD') {
-    allowableStress_ksi = 0.66 * Fy; // Allowable ASD Bending Stress (33.0 ksi for A992)
+    allowableStress_ksi = 0.66 * Fy;
     bendingStress_ksi = M_max_kipin / section.Sx;
     stressRatio = bendingStress_ksi / allowableStress_ksi;
-  } else { // LRFD
+  } else {
     const phi_b = 0.90;
     const Mn_kipin = Fy * section.Sx;
     const phi_Mn_kipft = (phi_b * Mn_kipin) / 12;
@@ -164,10 +185,12 @@ export function analyzeSteelBeam(inputs) {
     L2_ft,
     w_service_kft,
     w_factored_kft,
+    w_net_uplift_plf,
+    isNetUplift,
     reactions: {
-      R1: { dl: R1_dl_kips, ll: R1_ll_kips, service: R1_service_kips, factored: R1_factored_kips },
-      R2: { dl: R2_dl_kips, ll: R2_ll_kips, service: R2_service_kips, factored: R2_factored_kips },
-      R3: { dl: R3_dl_kips, ll: R3_ll_kips, service: R3_service_kips, factored: R3_factored_kips }
+      R1: { dl: R1_dl_kips, ll: R1_ll_kips, service: R1_service_kips, factored: R1_factored_kips, uplift: R1_uplift_kips },
+      R2: { dl: R2_dl_kips, ll: R2_ll_kips, service: R2_service_kips, factored: R2_factored_kips, uplift: R2_uplift_kips },
+      R3: { dl: R3_dl_kips, ll: R3_ll_kips, service: R3_service_kips, factored: R3_factored_kips, uplift: 0 }
     },
     M_max_kipft,
     V_max_kips,
@@ -190,6 +213,7 @@ export function analyzeSteelColumn(inputs) {
   const L_ft = inputs.L_ft || 12;
   const K = inputs.K || 1.0;
   const P_applied = inputs.P_axial_kips || 35.0;
+  const P_wind_uplift = inputs.P_wind_uplift_kips || 0;
 
   const section = inputs.section || AISC_DATABASE[0];
 
@@ -202,8 +226,8 @@ export function analyzeSteelColumn(inputs) {
 
   const KLr_max = KL_in / r_min;
 
-  const E = 29000; // ksi
-  const Fy = section.Fy || 50; // ksi
+  const E = 29000;
+  const Fy = section.Fy || 50;
 
   const Fe_ksi = (Math.PI * Math.PI * E) / Math.pow(KLr_max, 2);
 
@@ -218,10 +242,16 @@ export function analyzeSteelColumn(inputs) {
   const P_allowable_kips = (Fcr_ksi * section.A) / Omega_c;
   const P_cr_kips = Fe_ksi * section.A;
 
+  // Net Tension Uplift ASCE 7 Check (0.6 D - 1.0 W)
+  const P_net_tension_kips = Math.max(0, P_wind_uplift - (0.6 * P_applied));
+  const isNetTension = P_net_tension_kips > 0;
+  const P_tension_capacity_kips = (Fy * section.A) / 1.67;
+  const tensionPass = P_net_tension_kips <= P_tension_capacity_kips;
+
   const capacityRatio = P_applied / P_allowable_kips;
   const slendernessPass = KLr_max <= 200;
   const capacityPass = capacityRatio <= 1.0;
-  const isPass = slendernessPass && capacityPass;
+  const isPass = slendernessPass && capacityPass && tensionPass;
 
   return {
     sectionName: section.name,
@@ -233,6 +263,10 @@ export function analyzeSteelColumn(inputs) {
     P_cr_kips,
     P_allowable_kips,
     P_applied,
+    P_wind_uplift,
+    P_net_tension_kips,
+    isNetTension,
+    tensionPass,
     capacityRatio,
     slendernessPass,
     capacityPass,

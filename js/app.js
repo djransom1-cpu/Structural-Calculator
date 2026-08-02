@@ -1,6 +1,7 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - ASCE 7 / IBC Wind Net Uplift Load Combinations & Hold-Down Tension Checks
  * - Concrete Column Pad Footing (Side 1 x Side 2 x Pad Thickness & Column Pedestal)
  * - Custom Rebar Reinforcement Selection (#3-#10 @ 4"-18" spacing)
  * - Custom File Directory Save As... (window.showSaveFilePicker) & Export/Import (.json)
@@ -437,14 +438,18 @@ class StructuralApp {
     const beamMemName = this.projects[this.activeProjectId]?.members[this.activeMemberId]?.name || "Beam";
     const colMemName = `Column for ${beamMemName} (${supportPoint})`;
     const axialLoadKips = rxn.service.toFixed(1);
+    const upliftKips = rxn.uplift ? rxn.uplift.toFixed(1) : 0;
 
     const isSteel = this.currentModule === 'steel-beam';
     const targetModule = isSteel ? 'steel-column' : 'timber';
 
-    this.addNewMemberToProject(colMemName, targetModule, { sc_axial: axialLoadKips });
+    this.addNewMemberToProject(colMemName, targetModule, { sc_axial: axialLoadKips, sc_wind_uplift: upliftKips });
 
     document.getElementById('sc-axial').value = axialLoadKips;
-    alert(`⚡ Linked Reaction ${supportPoint} (${axialLoadKips} kips) from "${beamMemName}" to new Column "${colMemName}"!`);
+    if (document.getElementById('sc-wind-uplift')) {
+      document.getElementById('sc-wind-uplift').value = upliftKips;
+    }
+    alert(`⚡ Linked Reaction ${supportPoint} (${axialLoadKips} kips gravity | ${upliftKips} kips wind uplift) to new Column "${colMemName}"!`);
     this.recalculate();
   }
 
@@ -485,14 +490,18 @@ class StructuralApp {
     if (data.sb_dl_right) document.getElementById('sb-dl-right').value = data.sb_dl_right;
     if (data.sb_ll_left) document.getElementById('sb-ll-left').value = data.sb_ll_left;
     if (data.sb_ll_right) document.getElementById('sb-ll-right').value = data.sb_ll_right;
+    if (data.sb_wind_psf) document.getElementById('sb-wind-psf').value = data.sb_wind_psf;
+    if (data.sb_wind_plf) document.getElementById('sb-wind-plf').value = data.sb_wind_plf;
 
     if (data.sc_axial) document.getElementById('sc-axial').value = data.sc_axial;
+    if (data.sc_wind_uplift) document.getElementById('sc-wind-uplift').value = data.sc_wind_uplift;
 
     if (data.cf_width) document.getElementById('cf-width').value = data.cf_width;
     if (data.cf_length) document.getElementById('cf-length').value = data.cf_length;
     if (data.cf_thick) document.getElementById('cf-thick').value = data.cf_thick;
     if (data.cf_col_w) document.getElementById('cf-col-w').value = data.cf_col_w;
     if (data.cf_col_l) document.getElementById('cf-col-l').value = data.cf_col_l;
+    if (data.cf_puplift) document.getElementById('cf-puplift').value = data.cf_puplift;
     if (data.cf_rebar_mode) document.getElementById('cf-rebar-mode').value = data.cf_rebar_mode;
     if (data.cf_bar_size) document.getElementById('cf-bar-size').value = data.cf_bar_size;
     if (data.cf_bar_spacing) document.getElementById('cf-bar-spacing').value = data.cf_bar_spacing;
@@ -510,6 +519,8 @@ class StructuralApp {
     if (data.tb_dl_right) document.getElementById('tb-dl-right').value = data.tb_dl_right;
     if (data.tb_ll_left) document.getElementById('tb-ll-left').value = data.tb_ll_left;
     if (data.tb_ll_right) document.getElementById('tb-ll-right').value = data.tb_ll_right;
+    if (data.tb_wind_psf) document.getElementById('tb-wind-psf').value = data.tb_wind_psf;
+    if (data.tb_wind_plf) document.getElementById('tb-wind-plf').value = data.tb_wind_plf;
 
     if (data.pointLoads) this.pointLoads = data.pointLoads;
     if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
@@ -529,10 +540,14 @@ class StructuralApp {
       sb_dl_right: document.getElementById('sb-dl-right').value,
       sb_ll_left: document.getElementById('sb-ll-left').value,
       sb_ll_right: document.getElementById('sb-ll-right').value,
+      sb_wind_psf: document.getElementById('sb-wind-psf').value,
+      sb_wind_plf: document.getElementById('sb-wind-plf').value,
       sc_shape: document.getElementById('sc-shape').value,
       sc_axial: document.getElementById('sc-axial').value,
+      sc_wind_uplift: document.getElementById('sc-wind-uplift').value,
       cf_pdead: document.getElementById('cf-pdead').value,
       cf_plive: document.getElementById('cf-plive').value,
+      cf_puplift: document.getElementById('cf-puplift').value,
       cf_width: document.getElementById('cf-width').value,
       cf_length: document.getElementById('cf-length').value,
       cf_thick: document.getElementById('cf-thick').value,
@@ -556,6 +571,8 @@ class StructuralApp {
       tb_dl_right: document.getElementById('tb-dl-right').value,
       tb_ll_left: document.getElementById('tb-ll-left').value,
       tb_ll_right: document.getElementById('tb-ll-right').value,
+      tb_wind_psf: document.getElementById('tb-wind-psf').value,
+      tb_wind_plf: document.getElementById('tb-wind-plf').value,
       pointLoads: this.pointLoads,
       tbPointLoads: this.tbPointLoads
     };
@@ -821,6 +838,18 @@ class StructuralApp {
       this.recalculate();
     });
 
+    document.getElementById('sb-preset')?.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === 'roof') {
+        document.getElementById('sb-dl-left').value = 15;
+        document.getElementById('sb-dl-right').value = 15;
+        document.getElementById('sb-ll-left').value = 20;
+        document.getElementById('sb-ll-right').value = 20;
+        document.getElementById('sb-wind-psf').value = 16;
+      }
+      this.recalculate();
+    });
+
     document.getElementById('tb-preset')?.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val === 'floor') {
@@ -828,22 +857,13 @@ class StructuralApp {
         document.getElementById('tb-dl-right').value = 10;
         document.getElementById('tb-ll-left').value = 40;
         document.getElementById('tb-ll-right').value = 40;
-        document.getElementById('tb-deflect-live').value = "360";
-        document.getElementById('tb-deflect-total').value = "240";
+        document.getElementById('tb-wind-psf').value = 0;
       } else if (val === 'roof') {
         document.getElementById('tb-dl-left').value = 15;
         document.getElementById('tb-dl-right').value = 15;
         document.getElementById('tb-ll-left').value = 20;
         document.getElementById('tb-ll-right').value = 20;
-        document.getElementById('tb-deflect-live').value = "240";
-        document.getElementById('tb-deflect-total').value = "180";
-      } else if (val === 'header') {
-        document.getElementById('tb-dl-left').value = 15;
-        document.getElementById('tb-dl-right').value = 15;
-        document.getElementById('tb-ll-left').value = 50;
-        document.getElementById('tb-ll-right').value = 50;
-        document.getElementById('tb-deflect-live').value = "360";
-        document.getElementById('tb-deflect-total').value = "240";
+        document.getElementById('tb-wind-psf').value = 16;
       }
       this.recalculate();
     });
@@ -888,14 +908,14 @@ class StructuralApp {
 
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
-      'sb-trib-left', 'sb-trib-right', 'sb-dl-left', 'sb-dl-right', 'sb-ll-left', 'sb-ll-right',
+      'sb-trib-left', 'sb-trib-right', 'sb-dl-left', 'sb-dl-right', 'sb-ll-left', 'sb-ll-right', 'sb-wind-psf', 'sb-wind-plf',
       'sb-dl', 'sb-ll', 'sb-selfweight', 'sb-deflect-live', 'sb-deflect-total',
-      'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
-      'cf-pdead', 'cf-plive', 'cf-width', 'cf-length', 'cf-thick', 'cf-col-w', 'cf-col-l', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
+      'sc-shape', 'sc-length', 'sc-k', 'sc-axial', 'sc-wind-uplift',
+      'cf-pdead', 'cf-plive', 'cf-puplift', 'cf-width', 'cf-length', 'cf-thick', 'cf-col-w', 'cf-col-l', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
       'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
       'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
-      'tb-trib-left', 'tb-trib-right', 'tb-dl-left', 'tb-dl-right', 'tb-ll-left', 'tb-ll-right',
+      'tb-trib-left', 'tb-trib-right', 'tb-dl-left', 'tb-dl-right', 'tb-ll-left', 'tb-ll-right', 'tb-wind-psf', 'tb-wind-plf',
       'tb-dl', 'tb-ll', 'tb-deflect-live', 'tb-deflect-total',
       'rep-engineer', 'rep-company', 'rep-project', 'rep-client'
     ];
@@ -961,6 +981,8 @@ class StructuralApp {
       dlRight_psf: parseFloat(document.getElementById('sb-dl-right').value) || 0,
       llLeft_psf: parseFloat(document.getElementById('sb-ll-left').value) || 0,
       llRight_psf: parseFloat(document.getElementById('sb-ll-right').value) || 0,
+      wind_psf: parseFloat(document.getElementById('sb-wind-psf').value) || 0,
+      w_wind_plf: parseFloat(document.getElementById('sb-wind-plf').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
       pointLoads: this.pointLoads,
@@ -987,6 +1009,7 @@ class StructuralApp {
       L_ft: parseFloat(document.getElementById('sc-length').value) || 12,
       K: parseFloat(document.getElementById('sc-k').value) || 1.0,
       P_axial_kips: parseFloat(document.getElementById('sc-axial').value) || 35,
+      P_wind_uplift_kips: parseFloat(document.getElementById('sc-wind-uplift').value) || 0,
     };
 
     const opt = findLightestSteelColumn(inputs);
@@ -1018,6 +1041,8 @@ class StructuralApp {
       dlRight_psf: parseFloat(document.getElementById('tb-dl-right').value) || 0,
       llLeft_psf: parseFloat(document.getElementById('tb-ll-left').value) || 0,
       llRight_psf: parseFloat(document.getElementById('tb-ll-right').value) || 0,
+      wind_psf: parseFloat(document.getElementById('tb-wind-psf').value) || 0,
+      w_wind_plf: parseFloat(document.getElementById('tb-wind-plf').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('tb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('tb-ll').value) || 0,
       pointLoads: this.tbPointLoads,
@@ -1077,6 +1102,8 @@ class StructuralApp {
       dlRight_psf: parseFloat(document.getElementById('sb-dl-right').value) || 0,
       llLeft_psf: parseFloat(document.getElementById('sb-ll-left').value) || 0,
       llRight_psf: parseFloat(document.getElementById('sb-ll-right').value) || 0,
+      wind_psf: parseFloat(document.getElementById('sb-wind-psf').value) || 0,
+      w_wind_plf: parseFloat(document.getElementById('sb-wind-plf').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
       pointLoads: this.pointLoads,
@@ -1103,15 +1130,19 @@ class StructuralApp {
     const metrics = [
       { label: "Section & Type", val: res.sectionName, sub: `Type: ${section.type} | Config: ${res.beamType.toUpperCase()}` },
       { label: "Uniform Load w", val: `${(res.w_service_kft * 1000).toFixed(0)} plf`, sub: `Factored: ${(res.w_factored_kft * 1000).toFixed(0)} plf` },
-      { label: "Left Support Reaction R1", val: `${r.R1.service.toFixed(2)} kips`, sub: `DL: ${r.R1.dl.toFixed(2)}k | LL: ${r.R1.ll.toFixed(2)}k | Factored: ${r.R1.factored.toFixed(2)}k` },
-      { label: "Right Support Reaction R2", val: `${r.R2.service.toFixed(2)} kips`, sub: `DL: ${r.R2.dl.toFixed(2)}k | LL: ${r.R2.ll.toFixed(2)}k | Factored: ${r.R2.factored.toFixed(2)}k` },
+      { label: "Left Support Reaction R1", val: `${r.R1.service.toFixed(2)} kips`, sub: `DL: ${r.R1.dl.toFixed(2)}k | Wind Uplift: ${r.R1.uplift.toFixed(2)}k` },
+      { label: "Right Support Reaction R2", val: `${r.R2.service.toFixed(2)} kips`, sub: `DL: ${r.R2.dl.toFixed(2)}k | Wind Uplift: ${r.R2.uplift.toFixed(2)}k` },
       { label: stressLabel, val: stressVal, sub: stressSub },
       { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
       { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
     ];
 
+    if (res.isNetUplift) {
+      metrics.unshift({ label: "🌪️ ASCE 7 Net Wind Uplift", val: `${res.w_net_uplift_plf.toFixed(0)} plf UPLIFT`, sub: `Hold-Down Tie Tension Required at Bearing Points!` });
+    }
+
     if (res.beamType === 'two-span') {
-      metrics.splice(4, 0, { label: "Center Support Reaction R3", val: `${r.R3.service.toFixed(2)} kips`, sub: `DL: ${r.R3.dl.toFixed(2)}k | LL: ${r.R3.ll.toFixed(2)}k | Factored: ${r.R3.factored.toFixed(2)}k` });
+      metrics.splice(4, 0, { label: "Center Support Reaction R3", val: `${r.R3.service.toFixed(2)} kips`, sub: `DL: ${r.R3.dl.toFixed(2)}k | LL: ${r.R3.ll.toFixed(2)}k` });
     }
 
     this.renderMetrics(metrics);
@@ -1139,6 +1170,7 @@ class StructuralApp {
       L_ft: parseFloat(document.getElementById('sc-length').value) || 12,
       K: parseFloat(document.getElementById('sc-k').value) || 1.0,
       P_axial_kips: parseFloat(document.getElementById('sc-axial').value) || 35,
+      P_wind_uplift_kips: parseFloat(document.getElementById('sc-wind-uplift').value) || 0,
       section
     };
 
@@ -1146,13 +1178,18 @@ class StructuralApp {
     this.lastResult = res;
     this.updateStatus(res.isPass, res.capacityRatio * 100);
 
-    this.renderMetrics([
+    const metrics = [
       { label: "Column Shape", val: section.name, sub: `Area: ${section.A} in\u00B2` },
       { label: "Slenderness (KL/r)", val: res.KLr_max.toFixed(1), sub: res.slendernessPass ? "Pass (\u2264 200)" : "Exceeds 200 Limit" },
       { label: "Euler Buckling P_cr", val: `${res.P_cr_kips.toFixed(1)} kips`, sub: `Critical Stress: ${res.Fe_ksi.toFixed(1)} ksi` },
       { label: "Allowable Axial Load", val: `${res.P_allowable_kips.toFixed(1)} kips`, sub: `Applied: ${res.P_applied} kips` }
-    ]);
+    ];
 
+    if (res.isNetTension) {
+      metrics.unshift({ label: "🌪️ Net Wind Uplift Tension", val: `${res.P_net_tension_kips.toFixed(1)} kips`, sub: `Anchor Strap Required (${res.tensionPass ? 'Pass' : 'FAIL'})` });
+    }
+
+    this.renderMetrics(metrics);
     this.renderer.renderColumnAnalysis(res);
   }
 
@@ -1163,6 +1200,7 @@ class StructuralApp {
     const inputs = {
       P_dead_kips: parseFloat(document.getElementById('cf-pdead').value) || 40,
       P_live_kips: parseFloat(document.getElementById('cf-plive').value) || 25,
+      P_uplift_kips: parseFloat(document.getElementById('cf-puplift').value) || 0,
       width_ft: parseFloat(document.getElementById('cf-width').value) || 5,   // Side 1
       length_ft: parseFloat(document.getElementById('cf-length').value) || 5,  // Side 2
       thickness_in: parseFloat(document.getElementById('cf-thick').value) || 14, // Thickness t
@@ -1179,14 +1217,19 @@ class StructuralApp {
     this.lastResult = res;
     this.updateStatus(res.isPass, res.bearingRatio * 100);
 
-    this.renderMetrics([
-      { label: "Footing Pad Size", val: `${res.B_ft}' \u00D7 ${res.L_ft}' \u00D7 ${res.t_in}" pad`, sub: `Column: ${res.col_w_in}" \u00D7 ${res.col_l_in}" pedestal` },
+    const metrics = [
+      { label: "Footing Pad Size", val: `${res.B_ft}' \u00D7 ${res.L_ft}' \u00D7 ${res.t_in}" pad`, sub: `Weight: ${res.Weight_footing_kips.toFixed(1)} kips | Pedestal: ${res.col_w_in}" \u00D7 ${res.col_l_in}"` },
       { label: "Service Soil Pressure", val: `${res.q_service_ksf.toFixed(2)} ksf`, sub: `Allowable: ${res.q_allowable_ksf} ksf (${res.passBearing ? 'Pass' : 'FAIL'})` },
       { label: "Factored Moment Mu", val: `${res.M_u_kipft.toFixed(1)} kip-ft`, sub: `Factored Load Pu: ${res.P_factored} kips` },
       { label: "Flexural Steel As", val: `${res.As_provided_sqin_per_ft.toFixed(2)} in\u00B2/ft`, sub: `Required: ${res.As_required_sqin_per_ft.toFixed(2)} in\u00B2/ft` },
       { label: "Rebar Schedule", val: res.rebarRecommendation, sub: res.passSteel ? "Flexural Steel Pass" : "OVERSTRESSED - Increase Rebar Size" }
-    ]);
+    ];
 
+    if (res.P_uplift > 0) {
+      metrics.unshift({ label: "🌪️ Wind Uplift Ballast FOS", val: `FOS: ${res.FOS_uplift.toFixed(2)}`, sub: `Dead Load Resistance: ${res.Resisting_Dead_kips.toFixed(1)}k vs ${res.P_uplift}k uplift (${res.passUplift ? 'Pass' : 'FAIL < 1.5'})` });
+    }
+
+    this.renderMetrics(metrics);
     this.renderer.renderFootingAnalysis(res);
   }
 
@@ -1237,6 +1280,8 @@ class StructuralApp {
       dlRight_psf: parseFloat(document.getElementById('tb-dl-right').value) || 0,
       llLeft_psf: parseFloat(document.getElementById('tb-ll-left').value) || 0,
       llRight_psf: parseFloat(document.getElementById('tb-ll-right').value) || 0,
+      wind_psf: parseFloat(document.getElementById('tb-wind-psf').value) || 0,
+      w_wind_plf: parseFloat(document.getElementById('tb-wind-plf').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('tb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('tb-ll').value) || 0,
       pointLoads: this.tbPointLoads,
@@ -1256,12 +1301,16 @@ class StructuralApp {
     const metrics = [
       { label: "Member Size & Species", val: res.sizeName, sub: res.speciesName },
       { label: "Uniform Load w", val: `${res.w_service_plf.toFixed(0)} plf`, sub: `Span: ${res.L_ft} ft | Config: ${res.beamType.toUpperCase()}` },
-      { label: "Left Support Reaction R1", val: `${r.R1.service.toFixed(2)} kips`, sub: `DL: ${r.R1.dl.toFixed(2)}k | LL: ${r.R1.ll.toFixed(2)}k` },
-      { label: "Right Support Reaction R2", val: `${r.R2.service.toFixed(2)} kips`, sub: `DL: ${r.R2.dl.toFixed(2)}k | LL: ${r.R2.ll.toFixed(2)}k` },
+      { label: "Left Support Reaction R1", val: `${r.R1.service.toFixed(2)} kips`, sub: `DL: ${r.R1.dl.toFixed(2)}k | Wind Uplift: ${r.R1.uplift.toFixed(2)}k` },
+      { label: "Right Support Reaction R2", val: `${r.R2.service.toFixed(2)} kips`, sub: `DL: ${r.R2.dl.toFixed(2)}k | Wind Uplift: ${r.R2.uplift.toFixed(2)}k` },
       { label: "Bending Moment M", val: `${res.M_max_lbft.toFixed(0)} lb-ft`, sub: `Stress fb: ${res.fb_psi.toFixed(0)} psi / Allow Fb': ${res.Fb_prime_psi.toFixed(0)} psi` },
       { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
       { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
     ];
+
+    if (res.isNetUplift) {
+      metrics.unshift({ label: "🌪️ ASCE 7 Net Wind Uplift", val: `${res.w_net_uplift_plf.toFixed(0)} plf UPLIFT`, sub: `Hurricane Tie / Simpson Hold-Down Required!` });
+    }
 
     if (res.beamType === 'two-span') {
       metrics.splice(4, 0, { label: "Center Support Reaction R3", val: `${r.R3.service.toFixed(2)} kips`, sub: `DL: ${r.R3.dl.toFixed(2)}k | LL: ${r.R3.ll.toFixed(2)}k` });
@@ -1317,7 +1366,7 @@ class StructuralApp {
     if ((this.currentModule === 'steel-beam' || this.currentModule === 'timber') && this.lastResult && this.lastResult.reactions) {
       const r = this.lastResult.reactions;
       reactionsTableHTML = `
-        <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">BEARING POINT SUPPORT REACTIONS</h4>
+        <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">BEARING POINT SUPPORT REACTIONS & WIND UPLIFT HOLD-DOWNS</h4>
         <table class="print-table">
           <thead>
             <tr>
@@ -1325,7 +1374,7 @@ class StructuralApp {
               <th>Dead Load (DL)</th>
               <th>Live Load (LL)</th>
               <th>Total Service Reaction</th>
-              <th>Factored Load (LRFD/ASD)</th>
+              <th>ASCE 7 Net Wind Uplift (Tension)</th>
             </tr>
           </thead>
           <tbody>
@@ -1334,14 +1383,14 @@ class StructuralApp {
               <td>${r.R1.dl.toFixed(2)} kips</td>
               <td>${r.R1.ll.toFixed(2)} kips</td>
               <td><strong>${r.R1.service.toFixed(2)} kips</strong></td>
-              <td>${r.R1.factored.toFixed(2)} kips</td>
+              <td><strong style="color:${r.R1.uplift > 0 ? '#ef4444' : '#1e293b'};">${r.R1.uplift > 0 ? r.R1.uplift.toFixed(2) + ' kips UPLIFT' : '0.00 kips'}</strong></td>
             </tr>
             <tr>
               <td><strong>Right Bearing Support (R2)</strong></td>
               <td>${r.R2.dl.toFixed(2)} kips</td>
               <td>${r.R2.ll.toFixed(2)} kips</td>
               <td><strong>${r.R2.service.toFixed(2)} kips</strong></td>
-              <td>${r.R2.factored.toFixed(2)} kips</td>
+              <td><strong style="color:${r.R2.uplift > 0 ? '#ef4444' : '#1e293b'};">${r.R2.uplift > 0 ? r.R2.uplift.toFixed(2) + ' kips UPLIFT' : '0.00 kips'}</strong></td>
             </tr>
             ${this.lastResult.beamType === 'two-span' ? `
             <tr>
@@ -1349,7 +1398,7 @@ class StructuralApp {
               <td>${r.R3.dl.toFixed(2)} kips</td>
               <td>${r.R3.ll.toFixed(2)} kips</td>
               <td><strong>${r.R3.service.toFixed(2)} kips</strong></td>
-              <td>${r.R3.factored.toFixed(2)} kips</td>
+              <td>0.00 kips</td>
             </tr>` : ''}
           </tbody>
         </table>
