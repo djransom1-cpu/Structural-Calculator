@@ -1,6 +1,7 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - Interactive Field Guide & Examples Tab for all Input Fields
  * - AISC DG1 Steel Column Base Plate & Anchor Bolts Design Engine
  * - ASCE 7 / IBC Wind Net Uplift Load Combinations & Hold-Down Tension Checks
  * - Concrete Column Pad Footing (Side 1 x Side 2 x Pad Thickness & Column Pedestal)
@@ -48,6 +49,7 @@ class StructuralApp {
     this.renderPointLoadsUI();
     this.renderTimberPointLoadsUI();
     this.setupEventListeners();
+    this.setupSubnavTabs();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
     if ('serviceWorker' in navigator) {
@@ -61,6 +63,130 @@ class StructuralApp {
     }
 
     this.recalculate();
+  }
+
+  setupSubnavTabs() {
+    const btnInputs = document.getElementById('tabBtnInputs');
+    const btnGuide = document.getElementById('tabBtnGuide');
+    const panelInputs = document.getElementById('subpanel-inputs');
+    const panelGuide = document.getElementById('subpanel-guide');
+
+    btnInputs.addEventListener('click', () => {
+      btnInputs.classList.add('active');
+      btnInputs.style.color = 'var(--text-color)';
+      btnInputs.style.borderBottomColor = 'var(--primary-color)';
+
+      btnGuide.classList.remove('active');
+      btnGuide.style.color = 'var(--text-muted)';
+      btnGuide.style.borderBottomColor = 'transparent';
+
+      panelInputs.style.display = 'block';
+      panelGuide.style.display = 'none';
+    });
+
+    btnGuide.addEventListener('click', () => {
+      btnGuide.classList.add('active');
+      btnGuide.style.color = 'var(--text-color)';
+      btnGuide.style.borderBottomColor = 'var(--primary-color)';
+
+      btnInputs.classList.remove('active');
+      btnInputs.style.color = 'var(--text-muted)';
+      btnInputs.style.borderBottomColor = 'transparent';
+
+      panelInputs.style.display = 'none';
+      panelGuide.style.display = 'flex';
+
+      this.renderFieldGuideContent();
+    });
+  }
+
+  renderFieldGuideContent() {
+    const container = document.getElementById('guideContentList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const guides = this.getFieldGuideDataForModule(this.currentModule);
+
+    guides.forEach(g => {
+      const card = document.createElement('div');
+      card.style.cssText = `
+        background: rgba(30, 41, 59, 0.4);
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      `;
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:700; font-size:0.95rem; color:var(--accent-color);">${g.title}</div>
+          <div style="font-size:0.75rem; background:rgba(59, 130, 246, 0.15); color:var(--primary-color); padding:0.15rem 0.5rem; border-radius:4px; font-weight:600;">${g.units}</div>
+        </div>
+        <div style="font-size:0.85rem; color:var(--text-color); line-height:1.4;">${g.desc}</div>
+        <div style="font-size:0.8rem; background:rgba(255,255,255,0.03); border-left:3px solid #10b981; padding:0.4rem 0.6rem; border-radius:0 4px 4px 0; margin-top:0.2rem;">
+          <strong style="color:#10b981;">💡 Typical Example:</strong> <span style="color:var(--text-muted);">${g.example}</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  getFieldGuideDataForModule(moduleName) {
+    switch (moduleName) {
+      case 'steel-beam':
+        return [
+          { title: "Main Span L1", units: "Feet (ft)", desc: "Clear span distance between primary beam bearing supports.", example: "20 ft for a garage door header or 16 ft for a floor girder." },
+          { title: "Side A & Side B Tributary Widths", units: "Feet (ft)", desc: "Distance from beam centerline to mid-span of joists on Left (Side A) and Right (Side B). Allows asymmetric loading.", example: "Side A = 6 ft (left floor joists 12ft span), Side B = 4 ft (right hallway)." },
+          { title: "Dead Load (DL)", units: "PSF or PLF", desc: "Permanent structural self-weight of subflooring, joists, drywall, shingles, and mechanical systems.", example: "10-15 psf for wood floor framing; 20-25 psf for concrete deck on metal pan." },
+          { title: "Live Load (LL)", units: "PSF or PLF", desc: "Transient occupancy loads from people, furniture, snow, and movable equipment.", example: "40 psf for residential rooms, 50 psf for office, 100 psf for commercial assembly/deck." },
+          { title: "Wind Net Uplift Load (W)", units: "PSF or PLF", desc: "ASCE 7 net upward wind suction pressure acting on roof or canopy overhangs.", example: "16-25 psf net uplift in coastal hurricane zones or high roof corners." },
+          { title: "Concentrated Point Loads", units: "Kips (k)", desc: "Heavy point loads from intersecting post supports, trimmers, or rooftop HVAC units (1 kip = 1,000 lbs).", example: "P_DL = 1.5 k, P_LL = 3.0 k located at 6.0 ft from left support." },
+          { title: "Steel Yield Strength (Fy)", units: "ksi", desc: "Yield stress capacity of structural steel material.", example: "50 ksi for AISC A992 W-Beams, 36 ksi for A36 channels/angles, 46 ksi for HSS tubing." },
+          { title: "Deflection Limits (L/360, L/240)", units: "Ratio", desc: "IBC Code limits for serviceability deflection to prevent plaster cracking or sagging floors.", example: "L/360 live load limit = 0.667 in for a 20ft span." }
+        ];
+
+      case 'steel-column':
+        return [
+          { title: "Unbraced Column Height (L)", units: "Feet (ft)", desc: "Total unsupported length of column between lateral bracing levels.", example: "10-12 ft for typical story height." },
+          { title: "Effective Length Factor (K)", units: "Ratio", desc: "Buckling length factor based on column end support restraint conditions (AISC Table C-A-7.1).", example: "K = 1.0 for pinned top & bottom; K = 0.8 for fixed base & pinned top; K = 2.1 for cantilever." },
+          { title: "Applied Axial Gravity Load (P_axial)", units: "Kips (k)", desc: "Total downward service axial load supported by column top cap plate.", example: "35 kips (35,000 lbs) transferred from roof girders." },
+          { title: "Wind Net Uplift Tension (P_uplift)", units: "Kips (k)", desc: "Upward net tension force trying to pull column off foundation during ASCE 7 wind storms.", example: "5.0 kips net tension uplift." },
+          { title: "Base Plate Width & Length (B x N)", units: "Inches (in)", desc: "Dimensions of steel base plate welded to column bottom to distribute weight over concrete.", example: "12 in x 12 in base plate for an HSS 6x6 column." },
+          { title: "Base Plate Thickness (tp)", units: "Inches (in)", desc: "Thickness of base plate required to prevent plate bending yield from concrete bearing pressure.", example: "3/4 in (0.750 in) thick A36 steel plate." },
+          { title: "Anchor Rods (#, Dia, Grade)", units: "Count / Dia / Grade", desc: "Quantity, diameter, and steel specification of anchor bolts embedded in concrete foundation.", example: "(4) 3/4 in diameter F1554 Grade 36 or Grade 55 anchor rods." }
+        ];
+
+      case 'footing':
+        return [
+          { title: "Footing Pad Side 1 & Side 2 (B x L)", units: "Feet (ft)", desc: "Plan dimensions of rectangular or square concrete pad footing resting on soil.", example: "5.0 ft x 5.0 ft pad footing (25 sq. ft bearing area)." },
+          { title: "Footing Thickness (t)", units: "Inches (in)", desc: "Depth/thickness of footing pad to resist 2-way punching shear and 1-way flexural shear.", example: "14-16 in depth for standard column footings." },
+          { title: "Column Pedestal Size (B_col x L_col)", units: "Inches (in)", desc: "Dimensions of concrete pier or column resting directly on top of footing pad.", example: "12 in x 12 in pedestal." },
+          { title: "Allowable Soil Pressure (q_allow)", units: "KSF (k/ft²)", desc: "Maximum allowable net soil bearing capacity recommended in Geotechnical Report.", example: "3.0 ksf (3,000 psf) for firm clay/sand; 1.5 ksf for loose soil." },
+          { title: "Concrete Strength (f'c)", units: "PSI", desc: "28-day compressive strength of concrete mix.", example: "3,000 psi for standard footings; 4,000 psi for commercial pads." },
+          { title: "Rebar Schedule (# & Spacing)", units: "Size @ Inches", desc: "Flexural steel rebar mat placed at bottom of pad footing (with 3in clear cover).", example: "#5 bars @ 12 in o.c. each way." }
+        ];
+
+      case 'retaining':
+        return [
+          { title: "Retaining Wall Height (H)", units: "Feet (ft)", desc: "Total vertical height of retained earth from top of footing to top of stem wall.", example: "10.0 ft stem wall height." },
+          { title: "Footing Base Width (B)", units: "Feet (ft)", desc: "Total width of concrete footing base slab (Toe + Heel). Typically 50%-70% of wall height.", example: "6.5 ft base width for a 10ft wall." },
+          { title: "Soil Unit Weight (γ)", units: "PCF (lb/ft³)", desc: "Total moist density of backfill soil behind wall.", example: "120 pcf for compacted sand/gravel." },
+          { title: "Internal Friction Angle (φ)", units: "Degrees (°)", desc: "Soil shear strength angle used to calculate Rankine active lateral pressure coefficient (Ka).", example: "30° for well-drained gravelly soil; 25° for clay." },
+          { title: "Surcharge Load", units: "PSF", desc: "Uniform live load acting on surface behind wall (driveway, parking lot, slopes).", example: "100 psf for residential driveway traffic." }
+        ];
+
+      case 'timber':
+        return [
+          { title: "Built-Up Plies (# of Plies)", units: "Count", desc: "Number of 2x or LVL plies nailed/bolted together to form a header or beam.", example: "2-Ply or 3-Ply 2x10 header over a garage door." },
+          { title: "Ply Width & Depth", units: "Inches (in)", desc: "Actual width and depth of each individual wood ply.", example: "1.5 in width x 9.25 in depth for actual 2x10 lumber." },
+          { title: "Wood Species & Grade", units: "Name", desc: "Lumber species classification determining allowable NDS design stresses (Fb, Fv, E).", example: "Douglas Fir-Larch No.2 (Fb = 900 psi, E = 1.6M psi) or Southern Pine No.1." },
+          { title: "Engineered Wood Products", units: "Family", desc: "High-performance manufactured wood including LVL (Laminated Veneer Lumber), Glulam, PSL Parallam, and TJI I-Joists.", example: "1-3/4 in x 11-7/8 in LVL 2.0E header." }
+        ];
+
+      default:
+        return [];
+    }
   }
 
   setupAuth() {
@@ -978,6 +1104,11 @@ class StructuralApp {
     document.querySelectorAll('.module-content').forEach(mc => {
       mc.classList.toggle('active', mc.id === `mod-${moduleName}`);
     });
+
+    if (document.getElementById('subpanel-guide').style.display !== 'none') {
+      this.renderFieldGuideContent();
+    }
+
     this.recalculate();
     this.autoSaveActiveProject();
   }
