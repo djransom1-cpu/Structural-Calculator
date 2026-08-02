@@ -37,19 +37,82 @@
     </div>
   </div>
 
+  <!-- PROJECT MANAGER STARTING LANDING DASHBOARD -->
+  <div id="projectDashboard" class="dashboard-overlay">
+    <div class="dashboard-container">
+      <div class="dashboard-header">
+        <div class="brand-icon">🏗️</div>
+        <div>
+          <h1 style="font-family:var(--font-heading); font-size:1.75rem; font-weight:700;">Structural Engineering Project Hub</h1>
+          <p style="color:var(--text-muted); font-size:0.9rem;">Select a saved calculation project or create a new project to start working.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- LEFT: CREATE NEW PROJECT FORM -->
+        <div class="dashboard-card">
+          <h3 style="font-size:1.1rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+            <span>➕</span> Create New Calculation Project
+          </h3>
+          <form id="newProjectForm" style="display:flex; flex-direction:column; gap:0.85rem;">
+            <div class="form-group">
+              <label for="newProjName">Project Title / Name *</label>
+              <input type="text" id="newProjName" class="form-control" placeholder="e.g. Oakridge Commercial Header" required>
+            </div>
+            <div class="form-group">
+              <label for="newProjClient">Client / Contractor</label>
+              <input type="text" id="newProjClient" class="form-control" placeholder="e.g. BuildRight Construction">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="newProjEngineer">Engineer / PE Name</label>
+                <input type="text" id="newProjEngineer" class="form-control" placeholder="e.g. John Doe, PE">
+              </div>
+              <div class="form-group">
+                <label for="newProjCompany">Company / Firm</label>
+                <input type="text" id="newProjCompany" class="form-control" placeholder="e.g. Apex Engineering">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="newProjModule">Starting Analysis Module</label>
+              <select id="newProjModule" class="form-control">
+                <option value="steel-beam">🌉 Steel Beam Analysis</option>
+                <option value="steel-column">🏛️ HSS Column Buckling</option>
+                <option value="footing">🧱 Concrete Spread Footing</option>
+                <option value="retaining">📐 Retaining Wall</option>
+                <option value="timber">🪵 Timber Framing & Engineered Wood</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:0.95rem; margin-top:0.5rem;">🚀 Launch Project & Enable Auto-Save</button>
+          </form>
+        </div>
+
+        <!-- RIGHT: RECENT PROJECTS LIST -->
+        <div class="dashboard-card">
+          <h3 style="font-size:1.1rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+            <span>📁</span> Saved Projects Library
+          </h3>
+          <div id="projectsList" style="display:flex; flex-direction:column; gap:0.75rem; max-height:360px; overflow-y:auto; padding-right:0.25rem;">
+            <!-- Dynamically populated by JS app.js -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Top Application Header -->
   <header class="app-header">
     <div class="header-brand">
       <div class="brand-icon">🏗️</div>
       <div>
         <h1 class="app-title">Structural Engineering Suite</h1>
-        <p class="app-subtitle">Multi-Material Calculations & Visual Analysis</p>
+        <p class="app-subtitle" id="activeProjSub">Project: <span id="activeProjName">Default Project</span> <span style="color:var(--pass-color); font-weight:600;">🟢 Auto-Saved</span></p>
       </div>
     </div>
 
     <div class="header-actions">
-      <button id="saveProjectBtn" class="btn btn-outline" title="Save Calculation Project">💾 Save Project</button>
-      <button id="loadProjectBtn" class="btn btn-outline" title="Load Saved Project">📂 Load</button>
+      <button id="openHubBtn" class="btn btn-outline" title="Open Project Manager Dashboard">📁 Projects Hub</button>
+      <button id="saveProjectBtn" class="btn btn-outline" title="Save Calculation Project">💾 Save</button>
       <button id="unitToggleBtn" class="btn btn-outline" title="Switch Imperial / Metric">
         <span id="unitLabel">Imperial (US)</span>
       </button>

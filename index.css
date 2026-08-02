@@ -58,15 +58,15 @@ body {
 }
 
 /* ==========================================================================
-   AUTHENTICATION PASSCODE MODAL OVERLAY
+   AUTHENTICATION & PROJECT DASHBOARD OVERLAYS
    ========================================================================== */
-.auth-overlay {
+.auth-overlay, .dashboard-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(15, 23, 42, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   z-index: 99999;
@@ -74,10 +74,11 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  overflow-y: auto;
   transition: opacity 0.3s ease;
 }
 
-.auth-overlay.hidden {
+.auth-overlay.hidden, .dashboard-overlay.hidden {
   display: none !important;
 }
 
@@ -118,6 +119,60 @@ body {
   padding: 0.5rem;
   border-radius: 6px;
   border: 1px solid var(--fail-color);
+}
+
+/* Dashboard Landing Hub */
+.dashboard-container {
+  max-width: 960px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 1rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.proj-item {
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.proj-item:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
 }
 
 /* ==========================================================================
@@ -468,7 +523,7 @@ body {
     background: #ffffff !important;
     color: #000000 !important;
   }
-  .app-header, .module-nav, .app-container, .auth-overlay {
+  .app-header, .module-nav, .app-container, .auth-overlay, .dashboard-overlay {
     display: none !important;
   }
   .print-only {

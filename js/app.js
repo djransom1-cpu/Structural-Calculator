@@ -1,7 +1,8 @@
 /**
  * Master Application State & Event Controller
  * Features:
- * - Dynamic Built-Up Header Generator (# Plies x Ply Width x Member Depth)
+ * - Project Manager Landing Hub (#projectDashboard) with Saved Project Library & New Project Builder
+ * - Continuous Auto-Save to Active Project State
  * - Access Passcode Authentication Protection
  * - Complete Parity between Steel & Timber Modules
  * - Bearing Support Reactions (R1, R2, R3) for Dead, Live, Total Service & Factored loads
@@ -24,6 +25,9 @@ class StructuralApp {
     this.lastResult = null;
     this.masterPasscode = localStorage.getItem('structural_suite_passcode') || 'STRUCT2026';
     
+    this.projects = this.loadProjectsFromStorage();
+    this.activeProjectId = localStorage.getItem('structural_active_proj_id') || null;
+
     this.pointLoads = [
       { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
     ];
@@ -37,6 +41,7 @@ class StructuralApp {
 
   init() {
     this.setupAuth();
+    this.setupProjectHub();
     this.populateSelects();
     this.renderPointLoadsUI();
     this.renderTimberPointLoadsUI();
@@ -47,7 +52,12 @@ class StructuralApp {
       navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Registration:', err));
     }
 
-    this.loadFromLocalStorage();
+    if (this.activeProjectId && this.projects[this.activeProjectId]) {
+      this.loadProjectState(this.activeProjectId);
+    } else {
+      this.openProjectHub();
+    }
+
     this.recalculate();
   }
 
@@ -87,6 +97,198 @@ class StructuralApp {
       authOverlay.classList.remove('hidden');
       passcodeInput.focus();
     });
+  }
+
+  loadProjectsFromStorage() {
+    try {
+      return JSON.parse(localStorage.getItem('structural_suite_projects')) || {};
+    } catch(e) {
+      return {};
+    }
+  }
+
+  saveProjectsToStorage() {
+    localStorage.setItem('structural_suite_projects', JSON.stringify(this.projects));
+  }
+
+  setupProjectHub() {
+    const hubOverlay = document.getElementById('projectDashboard');
+    const newProjForm = document.getElementById('newProjectForm');
+
+    document.getElementById('openHubBtn').addEventListener('click', () => {
+      this.openProjectHub();
+    });
+
+    newProjForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('newProjName').value.trim();
+      const client = document.getElementById('newProjClient').value.trim();
+      const engineer = document.getElementById('newProjEngineer').value.trim();
+      const company = document.getElementById('newProjCompany').value.trim();
+      const startModule = document.getElementById('newProjModule').value;
+
+      if (!name) return;
+
+      const projId = 'proj_' + Date.now();
+      const newProj = {
+        id: projId,
+        name,
+        client,
+        engineer,
+        company,
+        module: startModule,
+        createdAt: new Date().toLocaleDateString(),
+        data: {}
+      };
+
+      this.projects[projId] = newProj;
+      this.saveProjectsToStorage();
+      this.activeProjectId = projId;
+      localStorage.setItem('structural_active_proj_id', projId);
+
+      if (engineer) document.getElementById('rep-engineer').value = engineer;
+      if (company) document.getElementById('rep-company').value = company;
+      if (name) document.getElementById('rep-project').value = name;
+      if (client) document.getElementById('rep-client').value = client;
+
+      this.switchModule(startModule);
+      this.closeProjectHub();
+      this.autoSaveActiveProject();
+    });
+
+    this.renderProjectsListUI();
+  }
+
+  openProjectHub() {
+    this.renderProjectsListUI();
+    document.getElementById('projectDashboard').classList.remove('hidden');
+  }
+
+  closeProjectHub() {
+    document.getElementById('projectDashboard').classList.add('hidden');
+  }
+
+  renderProjectsListUI() {
+    const container = document.getElementById('projectsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const projIds = Object.keys(this.projects);
+
+    if (projIds.length === 0) {
+      container.innerHTML = `<div style="color:var(--text-muted); font-size:0.85rem; font-style:italic; padding:1rem; text-align:center;">No saved projects yet. Create your first project on the left!</div>`;
+      return;
+    }
+
+    projIds.reverse().forEach(id => {
+      const proj = this.projects[id];
+      const item = document.createElement('div');
+      item.className = 'proj-item';
+      item.innerHTML = `
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:0.95rem;">${proj.name}</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">
+            Module: ${proj.module.toUpperCase()} | Created: ${proj.createdAt} ${proj.client ? '| Client: ' + proj.client : ''}
+          </div>
+        </div>
+        <div style="display:flex; gap:0.4rem;">
+          <button class="btn btn-primary load-proj-btn" data-id="${id}" style="padding:0.35rem 0.65rem; font-size:0.8rem;">Open Project</button>
+          <button class="btn btn-outline del-proj-btn" data-id="${id}" style="padding:0.35rem 0.5rem; font-size:0.8rem; color:var(--fail-color); border-color:var(--fail-color);">&times;</button>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+
+    container.querySelectorAll('.load-proj-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        this.loadProjectState(id);
+        this.closeProjectHub();
+      });
+    });
+
+    container.querySelectorAll('.del-proj-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        if (confirm(`Are you sure you want to delete project "${this.projects[id].name}"?`)) {
+          delete this.projects[id];
+          if (this.activeProjectId === id) {
+            this.activeProjectId = null;
+            localStorage.removeItem('structural_active_proj_id');
+          }
+          this.saveProjectsToStorage();
+          this.renderProjectsListUI();
+        }
+      });
+    });
+  }
+
+  loadProjectState(projId) {
+    const proj = this.projects[projId];
+    if (!proj) return;
+
+    this.activeProjectId = projId;
+    localStorage.setItem('structural_active_proj_id', projId);
+
+    document.getElementById('activeProjName').textContent = proj.name;
+
+    if (proj.engineer) document.getElementById('rep-engineer').value = proj.engineer;
+    if (proj.company) document.getElementById('rep-company').value = proj.company;
+    if (proj.name) document.getElementById('rep-project').value = proj.name;
+    if (proj.client) document.getElementById('rep-client').value = proj.client;
+
+    if (proj.data) {
+      const data = proj.data;
+      if (data.sb_family) document.getElementById('sb-family').value = data.sb_family;
+      this.updateBeamShapes();
+      if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
+      if (data.sb_span) document.getElementById('sb-span').value = data.sb_span;
+
+      if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
+      this.updateTimberMembers();
+      if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
+      if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
+      if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
+      if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
+
+      if (data.pointLoads) this.pointLoads = data.pointLoads;
+      if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
+    }
+
+    this.switchModule(proj.module || 'steel-beam');
+    this.recalculate();
+  }
+
+  autoSaveActiveProject() {
+    if (!this.activeProjectId || !this.projects[this.activeProjectId]) return;
+
+    const data = {
+      sb_family: document.getElementById('sb-family').value,
+      sb_shape: document.getElementById('sb-shape').value,
+      sb_span: document.getElementById('sb-span').value,
+      sc_shape: document.getElementById('sc-shape').value,
+      cf_pdead: document.getElementById('cf-pdead').value,
+      rw_height: document.getElementById('rw-height').value,
+      tb_family: document.getElementById('tb-family').value,
+      tb_species: document.getElementById('tb-species').value,
+      tb_plies: document.getElementById('tb-plies').value,
+      tb_ply_width: document.getElementById('tb-ply-width').value,
+      tb_depth: document.getElementById('tb-depth').value,
+      tb_size: document.getElementById('tb-size').value,
+      pointLoads: this.pointLoads,
+      tbPointLoads: this.tbPointLoads
+    };
+
+    this.projects[this.activeProjectId].data = data;
+    this.projects[this.activeProjectId].module = this.currentModule;
+    this.projects[this.activeProjectId].engineer = document.getElementById('rep-engineer').value;
+    this.projects[this.activeProjectId].company = document.getElementById('rep-company').value;
+    this.projects[this.activeProjectId].project = document.getElementById('rep-project').value;
+    this.projects[this.activeProjectId].client = document.getElementById('rep-client').value;
+
+    document.getElementById('activeProjName').textContent = this.projects[this.activeProjectId].name;
+
+    this.saveProjectsToStorage();
   }
 
   populateSelects() {
@@ -314,8 +516,12 @@ class StructuralApp {
     document.getElementById('optiSteelColBtn')?.addEventListener('click', () => this.autoOptimizeSteelColumn());
     document.getElementById('optiTimberBtn')?.addEventListener('click', () => this.autoOptimizeTimberBeam());
 
-    document.getElementById('saveProjectBtn').addEventListener('click', () => this.saveToLocalStorage());
-    document.getElementById('loadProjectBtn').addEventListener('click', () => this.loadFromLocalStorage());
+    document.getElementById('saveProjectBtn').addEventListener('click', () => {
+      this.autoSaveActiveProject();
+      alert(`💾 Active Project "${this.projects[this.activeProjectId]?.name || 'Default'}" saved!`);
+    });
+
+    document.getElementById('loadProjectBtn').addEventListener('click', () => this.openProjectHub());
 
     document.getElementById('sb-family')?.addEventListener('change', () => {
       this.updateBeamShapes();
@@ -414,8 +620,14 @@ class StructuralApp {
     inputIds.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
-        el.addEventListener('input', () => this.recalculate());
-        el.addEventListener('change', () => this.recalculate());
+        el.addEventListener('input', () => {
+          this.recalculate();
+          this.autoSaveActiveProject();
+        });
+        el.addEventListener('change', () => {
+          this.recalculate();
+          this.autoSaveActiveProject();
+        });
       }
     });
 
@@ -448,6 +660,7 @@ class StructuralApp {
       mc.classList.toggle('active', mc.id === `mod-${moduleName}`);
     });
     this.recalculate();
+    this.autoSaveActiveProject();
   }
 
   autoOptimizeSteelBeam() {
@@ -476,6 +689,7 @@ class StructuralApp {
       document.getElementById('sb-shape').value = opt.section.name;
       alert(`✨ Lightest Passing Section Found: ${opt.section.name} (${opt.section.weight} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
       this.recalculate();
+      this.autoSaveActiveProject();
     } else {
       alert("⚠️ No passing section found in this family.");
     }
@@ -495,6 +709,7 @@ class StructuralApp {
       document.getElementById('sc-shape').value = opt.section.name;
       alert(`✨ Lightest Passing Column Found: ${opt.section.name} (${opt.section.weight} lb/ft | Utilization: ${(opt.result.capacityRatio * 100).toFixed(1)}%)`);
       this.recalculate();
+      this.autoSaveActiveProject();
     } else {
       alert("⚠️ No passing column section found in this family.");
     }
@@ -533,49 +748,10 @@ class StructuralApp {
       }
       alert(`✨ Lightest Passing Wood Member Found: ${opt.member.name} (${opt.member.weight.toFixed(1)} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
       this.recalculate();
+      this.autoSaveActiveProject();
     } else {
       alert("⚠️ No passing wood member found in this category.");
     }
-  }
-
-  saveToLocalStorage() {
-    const data = {
-      sb_family: document.getElementById('sb-family').value,
-      sb_shape: document.getElementById('sb-shape').value,
-      sb_span: document.getElementById('sb-span').value,
-      sc_shape: document.getElementById('sc-shape').value,
-      cf_pdead: document.getElementById('cf-pdead').value,
-      rw_height: document.getElementById('rw-height').value,
-      tb_family: document.getElementById('tb-family').value,
-      tb_species: document.getElementById('tb-species').value,
-      tb_plies: document.getElementById('tb-plies').value,
-      tb_ply_width: document.getElementById('tb-ply-width').value,
-      tb_depth: document.getElementById('tb-depth').value,
-      tb_size: document.getElementById('tb-size').value,
-      pointLoads: this.pointLoads,
-      tbPointLoads: this.tbPointLoads
-    };
-    localStorage.setItem('structural_calc_project', JSON.stringify(data));
-    alert('💾 Project state saved locally!');
-  }
-
-  loadFromLocalStorage() {
-    const saved = localStorage.getItem('structural_calc_project');
-    if (!saved) return;
-    try {
-      const data = JSON.parse(saved);
-      if (data.sb_family) document.getElementById('sb-family').value = data.sb_family;
-      this.updateBeamShapes();
-      if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
-      if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
-      this.updateTimberMembers();
-      if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
-      if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
-      if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
-      if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
-      if (data.pointLoads) this.pointLoads = data.pointLoads;
-      if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
-    } catch(e) {}
   }
 
   recalculate() {
