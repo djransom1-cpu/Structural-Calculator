@@ -40,11 +40,13 @@ class StructuralApp {
     sbSelect.innerHTML = '';
     scSelect.innerHTML = '';
 
-    // Categorized Groups for Steel Shapes
+    // Categorized Groups for 200+ Steel Shapes
     const categories = {
       'W': 'Wide Flange Beams (W-Shapes)',
       'M': 'Miscellaneous Beams (M-Shapes)',
-      'C': 'Standard Channels (C & MC Shapes)',
+      'C': 'Standard Channels (C-Shapes)',
+      'MC': 'Miscellaneous Channels (MC-Shapes)',
+      'WT': 'Structural Tees (WT-Shapes)',
       'HSS': 'HSS Tubing (Square & Rectangular)',
       'Pipe': 'HSS Round Steel Pipe',
       'L': 'Angle Shapes (L-Angles)'
