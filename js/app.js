@@ -37,19 +37,46 @@ class StructuralApp {
   populateSelects() {
     const sbSelect = document.getElementById('sb-shape');
     const scSelect = document.getElementById('sc-shape');
-    
-    AISC_DATABASE.forEach(sec => {
-      const opt = document.createElement('option');
-      opt.value = sec.name;
-      opt.textContent = `${sec.name} (${sec.weight} lb/ft | Ix: ${sec.Ix} in⁴)`;
-      sbSelect.appendChild(opt);
-      scSelect.appendChild(opt.cloneNode(true));
+    sbSelect.innerHTML = '';
+    scSelect.innerHTML = '';
+
+    // Categorized Groups for Steel Shapes
+    const categories = {
+      'W': 'Wide Flange Beams (W-Shapes)',
+      'M': 'Miscellaneous Beams (M-Shapes)',
+      'C': 'Standard Channels (C & MC Shapes)',
+      'HSS': 'HSS Tubing (Square & Rectangular)',
+      'Pipe': 'HSS Round Steel Pipe',
+      'L': 'Angle Shapes (L-Angles)'
+    };
+
+    Object.keys(categories).forEach(typeKey => {
+      const group1 = document.createElement('optgroup');
+      group1.label = categories[typeKey];
+      const group2 = document.createElement('optgroup');
+      group2.label = categories[typeKey];
+
+      const shapes = AISC_DATABASE.filter(s => s.type === typeKey);
+      shapes.forEach(sec => {
+        const opt = document.createElement('option');
+        opt.value = sec.name;
+        opt.textContent = `${sec.name} (${sec.weight} lb/ft | Ix: ${sec.Ix} in⁴)`;
+        group1.appendChild(opt);
+        group2.appendChild(opt.cloneNode(true));
+      });
+
+      if (shapes.length > 0) {
+        sbSelect.appendChild(group1);
+        scSelect.appendChild(group2);
+      }
     });
 
     sbSelect.value = "W12x26";
     scSelect.value = "HSS6x6x3/8";
 
+    // Categorized Groups for Timber & Engineered Wood
     const tbSpeciesSelect = document.getElementById('tb-species');
+    tbSpeciesSelect.innerHTML = '';
     TIMBER_SPECIES.forEach(sp => {
       const opt = document.createElement('option');
       opt.value = sp.name;
@@ -58,11 +85,28 @@ class StructuralApp {
     });
 
     const tbSizeSelect = document.getElementById('tb-size');
-    LUMBER_SIZES.forEach(sz => {
-      const opt = document.createElement('option');
-      opt.value = sz.name;
-      opt.textContent = `${sz.name} (Sx: ${sz.Sx} in³)`;
-      tbSizeSelect.appendChild(opt);
+    tbSizeSelect.innerHTML = '';
+
+    const woodCats = {
+      'sawn': 'Dimension Sawn Lumber',
+      'lvl': 'LVL (1-Ply, 2-Ply, 3-Ply, 4-Ply Headers)',
+      'glulam': 'Glulam Architectural Beams',
+      'ijoist': 'TJI Engineered Wood I-Joists'
+    };
+
+    Object.keys(woodCats).forEach(catKey => {
+      const grp = document.createElement('optgroup');
+      grp.label = woodCats[catKey];
+      const sizes = LUMBER_SIZES.filter(sz => sz.category === catKey);
+      sizes.forEach(sz => {
+        const opt = document.createElement('option');
+        opt.value = sz.name;
+        opt.textContent = `${sz.name} (Sx: ${sz.Sx} in³)`;
+        grp.appendChild(opt);
+      });
+      if (sizes.length > 0) {
+        tbSizeSelect.appendChild(grp);
+      }
     });
   }
 
@@ -92,7 +136,6 @@ class StructuralApp {
       container.appendChild(row);
     });
 
-    // Attach listeners for dynamic point loads
     container.querySelectorAll('.pt-pdl').forEach(input => {
       input.addEventListener('input', (e) => {
         const idx = parseInt(e.target.dataset.idx);
@@ -130,7 +173,6 @@ class StructuralApp {
   }
 
   setupEventListeners() {
-    // Nav Module Tab switching
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const targetModule = e.currentTarget.dataset.module;
@@ -138,7 +180,6 @@ class StructuralApp {
       });
     });
 
-    // Preset Listener
     const presetSelect = document.getElementById('sb-preset');
     if (presetSelect) {
       presetSelect.addEventListener('change', () => {
@@ -168,7 +209,6 @@ class StructuralApp {
       });
     }
 
-    // Beam Type Listener (Single vs Cantilever vs 2-Span)
     const beamTypeSelect = document.getElementById('sb-beam-type');
     if (beamTypeSelect) {
       beamTypeSelect.addEventListener('change', () => {
@@ -189,7 +229,6 @@ class StructuralApp {
       });
     }
 
-    // Add Point Load Button Listener
     const addPtBtn = document.getElementById('addPointLoadBtn');
     if (addPtBtn) {
       addPtBtn.addEventListener('click', () => {
@@ -200,7 +239,6 @@ class StructuralApp {
       });
     }
 
-    // Steel Load Mode Toggle Listener
     const loadModeSelect = document.getElementById('sb-load-mode');
     if (loadModeSelect) {
       loadModeSelect.addEventListener('change', () => {
@@ -212,7 +250,6 @@ class StructuralApp {
       });
     }
 
-    // General Input Change Listeners
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
       'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
@@ -231,7 +268,6 @@ class StructuralApp {
       }
     });
 
-    // Theme Switch
     document.getElementById('themeToggleBtn').addEventListener('click', () => {
       document.body.classList.toggle('dark-theme');
       document.body.classList.toggle('light-theme');
@@ -240,14 +276,12 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // Unit Conversion Toggle
     document.getElementById('unitToggleBtn').addEventListener('click', () => {
       this.unitSystem = this.unitSystem === 'imperial' ? 'metric' : 'imperial';
       document.getElementById('unitLabel').textContent = this.unitSystem === 'imperial' ? 'Imperial (US)' : 'Metric (SI)';
       this.recalculate();
     });
 
-    // Print Submittal Report
     document.getElementById('printReportBtn').addEventListener('click', () => {
       this.generatePrintReport();
       window.print();
@@ -318,7 +352,7 @@ class StructuralApp {
     const stressSub = res.method === 'ASD' ? `Allowable: ${res.allowableStress_ksi.toFixed(2)} ksi` : `Capacity \u03C6Mn: ${res.allowableStress_ksi.toFixed(1)} kip-ft`;
 
     this.renderMetrics([
-      { label: "Section & Type", val: res.sectionName, sub: `Config: ${res.beamType.toUpperCase()}` },
+      { label: "Section & Type", val: res.sectionName, sub: `Type: ${section.type} | Config: ${res.beamType.toUpperCase()}` },
       { label: "Uniform Load w", val: `${(res.w_service_kft * 1000).toFixed(0)} plf`, sub: `Factored: ${(res.w_factored_kft * 1000).toFixed(0)} plf` },
       { label: "Point Loads", val: `${totalPointLoad.toFixed(1)} kips`, sub: `${this.pointLoads.length} load location(s)` },
       { label: stressLabel, val: stressVal, sub: stressSub },
@@ -326,7 +360,6 @@ class StructuralApp {
       { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
     ]);
 
-    // Canvas Diagram
     this.renderer.renderBeamAnalysis({
       w_kft: res.w_service_kft,
       P_kips: totalPointLoad,
