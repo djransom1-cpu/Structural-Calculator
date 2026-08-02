@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, and Timber Framing.">
+  <title>Structural Engineering Calculator & Estimator</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="index.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <!-- Top Application Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">🏗️</div>
+      <div>
+        <h1 class="app-title">Structural Engineering Suite</h1>
+        <p class="app-subtitle">Multi-Material Calculations & Visual Analysis</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="unitToggleBtn" class="btn btn-outline" title="Switch Imperial / Metric">
+        <span id="unitLabel">Imperial (US)</span>
+      </button>
+      <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Light/Dark Theme">
+        <span id="themeIcon">🌙</span>
+      </button>
+      <button id="printReportBtn" class="btn btn-primary" title="Print or Save PDF Report">
+        📄 Print Submittal
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs for Modules -->
+  <nav class="module-nav">
+    <button class="nav-tab active" data-module="steel-beam">
+      <span class="tab-icon">🌉</span> Steel Beam
+    </button>
+    <button class="nav-tab" data-module="steel-column">
+      <span class="tab-icon">🏛️</span> HSS Column
+    </button>
+    <button class="nav-tab" data-module="footing">
+      <span class="tab-icon">🧱</span> Concrete Footing
+    </button>
+    <button class="nav-tab" data-module="retaining">
+      <span class="tab-icon">📐</span> Retaining Wall
+    </button>
+    <button class="nav-tab" data-module="timber">
+      <span class="tab-icon">🪵</span> Timber Framing
+    </button>
+  </nav>
+
+  <!-- Main Content Layout -->
+  <main class="app-container">
+    
+    <!-- LEFT PANEL: INPUT CONTROLS -->
+    <section class="panel input-panel">
+      
+      <!-- STEEL BEAM MODULE -->
+      <div id="mod-steel-beam" class="module-content active">
+        <h2 class="module-title">Steel Beam Analysis</h2>
+        <p class="module-desc">Calculates bending stress $\sigma = M/S_x$, deflection $\delta = \frac{5wL^4}{384EI}$, and max shear.</p>
+        
+        <div class="form-group">
+          <label for="sb-shape">AISC Section Shape</label>
+          <select id="sb-shape" class="form-control"></select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-span">Span Length (L) <span class="unit-span">(ft)</span></label>
+            <input type="number" id="sb-span" class="form-control" value="20" step="0.5" min="1">
+          </div>
+          <div class="form-group">
+            <label for="sb-fy">Steel Grade ($F_y$)</label>
+            <select id="sb-fy" class="form-control">
+              <option value="50">A992 (50 ksi)</option>
+              <option value="36">A36 (36 ksi)</option>
+              <option value="46">HSS A500 Gr B (46 ksi)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-w">Uniform Load (w) <span class="unit-w">(k/ft)</span></label>
+            <input type="number" id="sb-w" class="form-control" value="1.2" step="0.1" min="0">
+          </div>
+          <div class="form-group">
+            <label for="sb-p">Center Point Load (P) <span class="unit-p">(kips)</span></label>
+            <input type="number" id="sb-p" class="form-control" value="5.0" step="0.5" min="0">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-deflect-limit">Deflection Code Limit</label>
+            <select id="sb-deflect-limit" class="form-control">
+              <option value="240">L / 240 (Total Load)</option>
+              <option value="360">L / 360 (Live Load)</option>
+              <option value="480">L / 480 (Plaster Ceiling)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEEL COLUMN MODULE -->
+      <div id="mod-steel-column" class="module-content">
+        <h2 class="module-title">Steel Column Buckling</h2>
+        <p class="module-desc">Euler critical buckling load & AISC slenderness check ($KL/r$).</p>
+        
+        <div class="form-group">
+          <label for="sc-shape">Column Shape (HSS / Wide Flange)</label>
+          <select id="sc-shape" class="form-control"></select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sc-length">Unbraced Height (L) <span class="unit-span">(ft)</span></label>
+            <input type="number" id="sc-length" class="form-control" value="12" step="0.5" min="1">
+          </div>
+          <div class="form-group">
+            <label for="sc-k">Effective Length Factor (K)</label>
+            <select id="sc-k" class="form-control">
+              <option value="1.0">1.0 (Pinned-Pinned)</option>
+              <option value="0.8">0.8 (Fixed-Pinned)</option>
+              <option value="0.65">0.65 (Fixed-Fixed)</option>
+              <option value="2.1">2.1 (Cantilever Fixed-Free)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="sc-axial">Applied Axial Load ($P_{\text{axial}}$) <span class="unit-p">(kips)</span></label>
+          <input type="number" id="sc-axial" class="form-control" value="35.0" step="5" min="0">
+        </div>
+      </div>
+
+      <!-- CONCRETE FOOTING MODULE -->
+      <div id="mod-footing" class="module-content">
+        <h2 class="module-title">Concrete Spread Footing</h2>
+        <p class="module-desc">Soil bearing pressure, footing sizing, flexural steel ($A_s$), and punching shear.</p>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cf-pdead">Dead Load ($P_{\text{dead}}$) <span class="unit-p">(kips)</span></label>
+            <input type="number" id="cf-pdead" class="form-control" value="40" step="5" min="0">
+          </div>
+          <div class="form-group">
+            <label for="cf-plive">Live Load ($P_{\text{live}}$) <span class="unit-p">(kips)</span></label>
+            <input type="number" id="cf-plive" class="form-control" value="25" step="5" min="0">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cf-width">Width (B) <span class="unit-span">(ft)</span></label>
+            <input type="number" id="cf-width" class="form-control" value="5.0" step="0.5" min="1">
+          </div>
+          <div class="form-group">
+            <label for="cf-thick">Thickness (t) (in)</label>
+            <input type="number" id="cf-thick" class="form-control" value="14" step="1" min="6">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cf-qallow">Allowable Soil Capacity ($q_{\text{allow}}$) (ksf)</label>
+            <input type="number" id="cf-qallow" class="form-control" value="3.0" step="0.25" min="0.5">
+          </div>
+          <div class="form-group">
+            <label for="cf-fc">Concrete Strength ($f'_c$) (psi)</label>
+            <select id="cf-fc" class="form-control">
+              <option value="3000">3,000 psi</option>
+              <option value="4000">4,000 psi</option>
+              <option value="5000">5,000 psi</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- RETAINING WALL MODULE -->
+      <div id="mod-retaining" class="module-content">
+        <h2 class="module-title">Retaining & Basement Wall</h2>
+        <p class="module-desc">Rankine active earth pressure ($K_a$), overturning & sliding factor of safety checks.</p>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rw-height">Wall Height (H) <span class="unit-span">(ft)</span></label>
+            <input type="number" id="rw-height" class="form-control" value="10.0" step="0.5" min="2">
+          </div>
+          <div class="form-group">
+            <label for="rw-base">Base Width (B) <span class="unit-span">(ft)</span></label>
+            <input type="number" id="rw-base" class="form-control" value="6.5" step="0.5" min="1">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rw-density">Soil Density ($\gamma$) (pcf)</label>
+            <input type="number" id="rw-density" class="form-control" value="120" step="5" min="80">
+          </div>
+          <div class="form-group">
+            <label for="rw-phi">Friction Angle ($\phi$) (deg)</label>
+            <input type="number" id="rw-phi" class="form-control" value="30" step="1" min="15" max="45">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="rw-surcharge">Surface Surcharge (psf)</label>
+          <input type="number" id="rw-surcharge" class="form-control" value="100" step="50" min="0">
+        </div>
+      </div>
+
+      <!-- TIMBER MODULE -->
+      <div id="mod-timber" class="module-content">
+        <h2 class="module-title">Timber & Framing</h2>
+        <p class="module-desc">Wood joists, beam bending stress, duration factor ($C_D$), and deflection checks.</p>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tb-species">Wood Species & Grade</label>
+            <select id="tb-species" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label for="tb-size">Nominal Size</label>
+            <select id="tb-size" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tb-span">Joist/Beam Span (L) <span class="unit-span">(ft)</span></label>
+            <input type="number" id="tb-span" class="form-control" value="14.0" step="0.5" min="2">
+          </div>
+          <div class="form-group">
+            <label for="tb-w">Uniform Load (w) (plf)</label>
+            <input type="number" id="tb-w" class="form-control" value="120" step="10" min="0">
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: VISUAL DIAGRAMS & RESULTS -->
+    <section class="panel output-panel">
+      
+      <!-- Status Badge Header -->
+      <div class="results-header">
+        <div class="status-badge" id="statusBadge">
+          <span class="status-icon">✓</span>
+          <span class="status-text">STATUS: PASS</span>
+        </div>
+        <div class="utilization-bar-container">
+          <div class="utilization-label">Stress Utilization: <strong id="utilPercent">0%</strong></div>
+          <div class="utilization-track">
+            <div class="utilization-fill" id="utilFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Key Metrics Output Grid -->
+      <div class="metrics-grid" id="metricsGrid">
+        <!-- Dynamically populated by JS app.js -->
+      </div>
+
+      <!-- Real-time Visual Canvas Diagram -->
+      <div class="canvas-wrapper">
+        <h3 class="canvas-title">Interactive Analysis Diagrams</h3>
+        <canvas id="analysisCanvas"></canvas>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Printable Submittal Document Container (hidden on screen, active on window.print) -->
+  <div id="printDocument" class="print-only">
+    <div class="print-header">
+      <h2>STRUCTURAL CALCULATIONS SUBMITTAL REPORT</h2>
+      <p>Project: Structural Engineering Calculator | Date: <span id="printDate"></span></p>
+    </div>
+    <div id="printBody"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
