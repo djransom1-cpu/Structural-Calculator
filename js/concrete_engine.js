@@ -1,90 +1,124 @@
 /**
- * Concrete Foundation & Footing Calculation Engine
- * Handles isolated square/rectangular spread footing analysis:
- * - Soil Bearing Pressure Check
- * - One-Way & Two-Way (Punching) Shear
- * - Flexural Steel Reinforcement Area (As) & Bar Recommendations
+ * Reinforced Concrete Spread Footing Engine (ACI 318-19 Standards)
+ * Includes Custom Rebar Reinforcement Selection (#3 through #10 @ 4" to 18" spacing)
+ * & Auto-Required Rebar Calculation.
  */
 
 export function analyzeConcreteFooting(inputs) {
-  // Inputs
-  const P_dl = inputs.P_dead_kips || 0;
-  const P_ll = inputs.P_live_kips || 0;
-  const P_total = P_dl + P_ll; // Service axial load (kips)
-  const P_factored = 1.2 * P_dl + 1.6 * P_ll; // Ultimate factored load Pu (kips)
+  const P_dead = inputs.P_dead_kips || 40;
+  const P_live = inputs.P_live_kips || 25;
+  const B_ft = inputs.width_ft || 5;
+  const L_ft = inputs.length_ft || B_ft;
+  const t_in = inputs.thickness_in || 14;
+  const q_allow = inputs.q_allowable_ksf || 3.0;
+  const fc = inputs.fc_psi || 3000;
+  const fy = 60000; // Grade 60 Rebar
 
-  const B_ft = inputs.width_ft || 4.0; // Footing Width (ft)
-  const L_ft = inputs.length_ft || 4.0; // Footing Length (ft)
-  const t_in = inputs.thickness_in || 12.0; // Footing Thickness (in)
-  const col_in = inputs.column_size_in || 12.0; // Square column width (in)
+  // 1. Soil Bearing Capacity Check
+  const P_service = P_dead + P_live;
+  const Area_ft2 = B_ft * L_ft;
+  const q_service_ksf = P_service / Area_ft2;
+  const passBearing = q_service_ksf <= q_allow;
+  const bearingRatio = q_service_ksf / q_allow;
 
-  const q_allowable_ksf = inputs.q_allowable_ksf || 3.0; // Soil bearing capacity (ksf)
-  const fc_psi = inputs.fc_psi || 3000; // Concrete compressive strength (psi)
-  const fy_psi = inputs.fy_psi || 60000; // Rebar yield strength (psi)
-
-  // 1. Footing Self-Weight & Gross Soil Bearing Pressure
-  const concreteDensity_pcf = 150;
-  const footingWeight_kips = (B_ft * L_ft * (t_in / 12) * concreteDensity_pcf) / 1000;
-  const Area_sqft = B_ft * L_ft;
-
-  const q_service_ksf = (P_total + footingWeight_kips) / Area_sqft;
-  const bearingRatio = q_service_ksf / q_allowable_ksf;
-  const passBearing = q_service_ksf <= q_allowable_ksf;
-
-  // 2. Net Factored Soil Pressure (ksf) for structural design
-  const q_u_ksf = P_factored / Area_sqft;
+  // 2. Factored Ultimate Load (1.2D + 1.6L)
+  const P_factored = (1.2 * P_dead) + (1.6 * P_live);
+  const q_u_ksf = P_factored / Area_ft2;
   const q_u_psi = (q_u_ksf * 1000) / 144;
 
-  // Effective depth d (inches) - assuming 3" clear cover + #5 rebar
-  const d_in = Math.max(t_in - 3.5, 1);
+  // 3. Cantilever Bending Moment & Required Steel Area As
+  const col_width_in = 12; // 12x12 Column
+  const cantilever_in = ((B_ft * 12) - col_width_in) / 2;
+  const cantilever_ft = cantilever_in / 12;
 
-  // 3. Cantilever Bending Moment at Column Face
-  // Projection length cantilever c = (L - col) / 2
-  const c_ft = (L_ft - col_in / 12) / 2;
-  const M_u_kipft = (q_u_ksf * B_ft * Math.pow(c_ft, 2)) / 2; // Factored Moment (kip-ft)
-  const M_u_kipin = M_u_kipft * 12;
+  const M_u_lbft = (q_u_ksf * 1000 * Math.pow(cantilever_ft, 2)) / 2; // per ft width
+  const M_u_kipin = (M_u_lbft * 12) / 1000;
+  const M_u_kipft = M_u_lbft / 1000;
 
-  // 4. Flexural Steel Reinforcement As (sq in per direction)
-  // Mn = phi * As * fy * (d - a/2) where a = As*fy / (0.85 * fc * B)
-  // Approximate As = Mu / (0.9 * fy * 0.9 * d)
-  const phi = 0.9;
-  const As_req_sqin = M_u_kipin / (phi * (fy_psi / 1000) * 0.9 * d_in);
-  
-  // Temperature & Shrinkage Minimum Steel (0.0018 * B * t)
-  const As_min_sqin = 0.0018 * (B_ft * 12) * t_in;
-  const As_final_sqin = Math.max(As_req_sqin, As_min_sqin);
+  const cover_in = 3.0; // ACI 318 cast against soil
+  const d_in = t_in - cover_in - 0.375; // Effective depth
 
-  // Rebar Selection Helper (#4, #5, #6 bars)
-  const barArea = { "#4": 0.20, "#5": 0.31, "#6": 0.44 };
-  const countBar5 = Math.ceil(As_final_sqin / barArea["#5"]);
-  const spacingInches = countBar5 > 1 ? Math.floor((B_ft * 12 - 6) / (countBar5 - 1)) : 12;
+  const phi_b = 0.90;
+  const As_req_sqin_per_ft = M_u_kipin / (phi_b * (fy / 1000) * 0.9 * d_in);
+  const As_min_per_ft = 0.0018 * 12 * t_in;
+  const As_final_req_per_ft = Math.max(As_req_sqin_per_ft, As_min_per_ft);
+  const As_total_req = As_final_req_per_ft * B_ft;
 
-  // 5. Punching (Two-Way) Shear Check at d/2 from column face
-  const bo_in = 4 * (col_in + d_in); // Critical perimeter
-  const V_u_punch_kips = P_factored - q_u_ksf * Math.pow((col_in + d_in) / 12, 2);
-  const V_c_punch_psi = 4 * Math.sqrt(fc_psi); // 4 * sqrt(fc')
-  const phi_shear = 0.75;
-  const V_n_punch_kips = (phi_shear * V_c_punch_psi * bo_in * d_in) / 1000;
-  const passPunching = V_u_punch_kips <= V_n_punch_kips;
+  // Rebar Data Lookup
+  const rebarAreas = {
+    3: 0.11,
+    4: 0.20,
+    5: 0.31,
+    6: 0.44,
+    7: 0.60,
+    8: 0.79,
+    9: 1.00,
+    10: 1.27
+  };
 
-  const isPass = passBearing && passPunching;
+  let barSize = parseInt(inputs.customBarSize) || 5;
+  let barSpacing = parseFloat(inputs.customBarSpacing) || 12;
+  let isCustomRebar = inputs.rebarMode === 'custom';
+
+  let barArea = rebarAreas[barSize] || 0.31;
+  let As_provided_per_ft = (12 / barSpacing) * barArea;
+  let As_total_provided = As_provided_per_ft * B_ft;
+
+  let rebarSchedule = "";
+  if (isCustomRebar) {
+    rebarSchedule = `#${barSize} @ ${barSpacing}" o.c. (Provided: ${As_provided_per_ft.toFixed(2)} in²/ft | Required: ${As_final_req_per_ft.toFixed(2)} in²/ft)`;
+  } else {
+    // Auto recommendation
+    if (As_final_req_per_ft <= 0.31) {
+      rebarSchedule = `#4 @ 8" o.c. bottom mat each way`;
+      barSize = 4; barSpacing = 8;
+    } else if (As_final_req_per_ft <= 0.45) {
+      rebarSchedule = `#5 @ 8" o.c. bottom mat each way`;
+      barSize = 5; barSpacing = 8;
+    } else {
+      rebarSchedule = `#6 @ 8" o.c. bottom mat each way`;
+      barSize = 6; barSpacing = 8;
+    }
+    barArea = rebarAreas[barSize];
+    As_provided_per_ft = (12 / barSpacing) * barArea;
+    As_total_provided = As_provided_per_ft * B_ft;
+  }
+
+  // Flexural Capacity Check phi*Mn
+  const a_in = (As_provided_per_ft * fy) / (0.85 * fc * 12);
+  const Mn_kipin_per_ft = As_provided_per_ft * (fy / 1000) * (d_in - (a_in / 2));
+  const phi_Mn_kipft_per_ft = (phi_b * Mn_kipin_per_ft) / 12;
+
+  const passSteel = As_provided_per_ft >= As_final_req_per_ft && phi_Mn_kipft_per_ft >= (M_u_kipft);
+
+  // 4. One-Way & Two-Way Punching Shear Checks
+  const V_u_1way_lbs = (q_u_psi * 144) * (cantilever_ft - (d_in / 12));
+  const phi_Vc_1way_lbs = 0.75 * 2 * Math.sqrt(fc) * 12 * d_in;
+  const passOneWayShear = V_u_1way_lbs <= phi_Vc_1way_lbs;
+
+  const bo_in = 4 * (col_width_in + d_in);
+  const V_u_2way_lbs = (q_u_psi * 144) * (Area_ft2 - Math.pow((col_width_in + d_in) / 12, 2));
+  const phi_Vc_2way_lbs = 0.75 * 4 * Math.sqrt(fc) * bo_in * d_in;
+  const passTwoWayShear = V_u_2way_lbs <= phi_Vc_2way_lbs;
+
+  const isPass = passBearing && passSteel && passOneWayShear && passTwoWayShear;
 
   return {
-    P_total,
+    P_service,
     P_factored,
-    footingWeight_kips,
-    Area_sqft,
     q_service_ksf,
-    q_allowable_ksf,
+    q_allowable_ksf: q_allow,
     bearingRatio,
     passBearing,
-    c_ft,
     M_u_kipft,
-    As_final_sqin,
-    rebarRecommendation: `${countBar5}x #5 Bars @ ${spacingInches}" o.c. (each way)`,
-    V_u_punch_kips,
-    V_n_punch_kips,
-    passPunching,
+    As_required_sqin_per_ft: As_final_req_per_ft,
+    As_provided_sqin_per_ft: As_provided_per_ft,
+    As_final_sqin: As_total_provided,
+    phi_Mn_kipft_per_ft,
+    rebarRecommendation: rebarSchedule,
+    passSteel,
+    passOneWayShear,
+    passTwoWayShear,
     isPass
   };
 }

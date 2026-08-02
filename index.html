@@ -123,6 +123,7 @@
 
     <div class="header-actions">
       <button id="openHubBtn" class="btn btn-outline" title="Open Project Manager Dashboard">📁 Projects Hub</button>
+      <button id="saveAsProjBtn" class="btn btn-outline" title="Save Project File to Custom Directory">💾 Save As...</button>
       <button id="exportProjBtn" class="btn btn-outline" title="Export Project to JSON File">📥 Export File</button>
       <label class="btn btn-outline" title="Import Project JSON File" style="cursor:pointer;">
         📤 Import File
@@ -396,7 +397,7 @@
         </div>
       </div>
 
-      <!-- CONCRETE FOOTING MODULE -->
+      <!-- CONCRETE FOOTING MODULE WITH REBAR REINFORCEMENT SELECTION -->
       <div id="mod-footing" class="module-content">
         <h2 class="module-title">Concrete Spread Footing</h2>
         <p class="module-desc">Soil bearing pressure, footing sizing, flexural steel ($A_s$), and punching shear.</p>
@@ -437,6 +438,49 @@
             </select>
           </div>
         </div>
+
+        <!-- REBAR REINFORCEMENT INPUT CONTROLS -->
+        <div style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(34, 197, 94, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(34, 197, 94, 0.2);">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--pass-color);">🧱 Concrete Rebar Reinforcement Selection</div>
+          
+          <div class="form-group">
+            <label for="cf-rebar-mode">Reinforcement Specification Mode</label>
+            <select id="cf-rebar-mode" class="form-control">
+              <option value="auto">Auto-Calculate Required Rebar Schedule (ACI 318)</option>
+              <option value="custom">Custom Rebar Selection (Specify Bar Size & Spacing)</option>
+            </select>
+          </div>
+
+          <div id="group-custom-rebar" class="form-row" style="display:none;">
+            <div class="form-group">
+              <label for="cf-bar-size">Rebar Size</label>
+              <select id="cf-bar-size" class="form-control">
+                <option value="3">#3 Bar (0.375" dia | 0.11 in²)</option>
+                <option value="4">#4 Bar (0.500" dia | 0.20 in²)</option>
+                <option value="5" selected>#5 Bar (0.625" dia | 0.31 in²)</option>
+                <option value="6">#6 Bar (0.750" dia | 0.44 in²)</option>
+                <option value="7">#7 Bar (0.875" dia | 0.60 in²)</option>
+                <option value="8">#8 Bar (1.000" dia | 0.79 in²)</option>
+                <option value="9">#9 Bar (1.128" dia | 1.00 in²)</option>
+                <option value="10">#10 Bar (1.270" dia | 1.27 in²)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="cf-bar-spacing">Center-to-Center Spacing</label>
+              <select id="cf-bar-spacing" class="form-control">
+                <option value="4">4" o.c.</option>
+                <option value="6">6" o.c.</option>
+                <option value="8">8" o.c.</option>
+                <option value="10">10" o.c.</option>
+                <option value="12" selected>12" o.c.</option>
+                <option value="14">14" o.c.</option>
+                <option value="16">16" o.c.</option>
+                <option value="18">18" o.c. (Max ACI Code Limit)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- RETAINING WALL MODULE -->

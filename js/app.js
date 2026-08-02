@@ -1,11 +1,12 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - Custom Rebar Reinforcement Selection (#3-#10 @ 4"-18" spacing)
+ * - Custom File Directory Save As... (window.showSaveFilePicker) & Export/Import (.json)
  * - Asymmetric Side A & Side B Load Inputs (DL_A, LL_A, Trib_A vs DL_B, LL_B, Trib_B)
  * - Asymmetric Support Reactions (R1, R2, R3) for Point Loads and Unbalanced Spans
  * - Multi-Member Project Management (Multiple Named Beams & Columns in 1 Project)
  * - Beam-to-Column Reaction Load Transfer Link
- * - Project JSON File Export (.json) & Import (.json)
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
@@ -114,6 +115,7 @@ class StructuralApp {
 
   setupImportExport() {
     document.getElementById('exportProjBtn')?.addEventListener('click', () => this.exportProjectFile());
+    document.getElementById('saveAsProjBtn')?.addEventListener('click', () => this.saveProjectAsFile());
 
     const handleFileImport = (fileInput) => {
       const file = fileInput.files[0];
@@ -140,6 +142,40 @@ class StructuralApp {
 
     document.getElementById('hubImportFileInput')?.addEventListener('change', (e) => handleFileImport(e.target));
     document.getElementById('headerImportFileInput')?.addEventListener('change', (e) => handleFileImport(e.target));
+  }
+
+  async saveProjectAsFile() {
+    if (!this.activeProjectId || !this.projects[this.activeProjectId]) {
+      alert('⚠️ No active project to save.');
+      return;
+    }
+    this.autoSaveActiveProject();
+    const proj = this.projects[this.activeProjectId];
+    const jsonString = JSON.stringify(proj, null, 2);
+    const safeName = proj.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+    // Check if Native System File Picker API is available
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: `${safeName}_project.json`,
+          types: [{
+            description: 'Structural Calculator Project File (*.json)',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        alert(`💾 Project successfully saved to your selected directory!`);
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User cancelled prompt
+      }
+    }
+
+    // Fallback for browsers without Native File System Access API
+    this.exportProjectFile();
   }
 
   exportProjectFile() {
@@ -454,6 +490,10 @@ class StructuralApp {
 
     if (data.sc_axial) document.getElementById('sc-axial').value = data.sc_axial;
 
+    if (data.cf_rebar_mode) document.getElementById('cf-rebar-mode').value = data.cf_rebar_mode;
+    if (data.cf_bar_size) document.getElementById('cf-bar-size').value = data.cf_bar_size;
+    if (data.cf_bar_spacing) document.getElementById('cf-bar-spacing').value = data.cf_bar_spacing;
+
     if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
     this.updateTimberMembers();
     if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
@@ -489,6 +529,14 @@ class StructuralApp {
       sc_shape: document.getElementById('sc-shape').value,
       sc_axial: document.getElementById('sc-axial').value,
       cf_pdead: document.getElementById('cf-pdead').value,
+      cf_plive: document.getElementById('cf-plive').value,
+      cf_width: document.getElementById('cf-width').value,
+      cf_thick: document.getElementById('cf-thick').value,
+      cf_qallow: document.getElementById('cf-qallow').value,
+      cf_fc: document.getElementById('cf-fc').value,
+      cf_rebar_mode: document.getElementById('cf-rebar-mode').value,
+      cf_bar_size: document.getElementById('cf-bar-size').value,
+      cf_bar_spacing: document.getElementById('cf-bar-spacing').value,
       rw_height: document.getElementById('rw-height').value,
       tb_family: document.getElementById('tb-family').value,
       tb_species: document.getElementById('tb-species').value,
@@ -746,6 +794,12 @@ class StructuralApp {
     document.getElementById('optiSteelColBtn')?.addEventListener('click', () => this.autoOptimizeSteelColumn());
     document.getElementById('optiTimberBtn')?.addEventListener('click', () => this.autoOptimizeTimberBeam());
 
+    document.getElementById('cf-rebar-mode')?.addEventListener('change', (e) => {
+      const isCustom = e.target.value === 'custom';
+      document.getElementById('group-custom-rebar').style.display = isCustom ? 'grid' : 'none';
+      this.recalculate();
+    });
+
     document.getElementById('sb-family')?.addEventListener('change', () => {
       this.updateBeamShapes();
       this.recalculate();
@@ -831,7 +885,7 @@ class StructuralApp {
       'sb-trib-left', 'sb-trib-right', 'sb-dl-left', 'sb-dl-right', 'sb-ll-left', 'sb-ll-right',
       'sb-dl', 'sb-ll', 'sb-selfweight', 'sb-deflect-live', 'sb-deflect-total',
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
-      'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
+      'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
       'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
       'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
@@ -1107,7 +1161,10 @@ class StructuralApp {
       length_ft: parseFloat(document.getElementById('cf-width').value) || 5,
       thickness_in: parseFloat(document.getElementById('cf-thick').value) || 14,
       q_allowable_ksf: parseFloat(document.getElementById('cf-qallow').value) || 3.0,
-      fc_psi: parseFloat(document.getElementById('cf-fc').value) || 3000
+      fc_psi: parseFloat(document.getElementById('cf-fc').value) || 3000,
+      rebarMode: document.getElementById('cf-rebar-mode').value,
+      customBarSize: document.getElementById('cf-bar-size').value,
+      customBarSpacing: document.getElementById('cf-bar-spacing').value
     };
 
     const res = analyzeConcreteFooting(inputs);
@@ -1117,8 +1174,8 @@ class StructuralApp {
     this.renderMetrics([
       { label: "Service Pressure", val: `${res.q_service_ksf.toFixed(2)} ksf`, sub: `Allowable: ${res.q_allowable_ksf} ksf` },
       { label: "Factored Moment Mu", val: `${res.M_u_kipft.toFixed(1)} kip-ft`, sub: `Factored Load Pu: ${res.P_factored} kips` },
-      { label: "Flexural Steel As", val: `${res.As_final_sqin.toFixed(2)} in\u00B2`, sub: "Required steel area" },
-      { label: "Rebar Schedule", val: res.rebarRecommendation, sub: "Bottom mat each way" }
+      { label: "Flexural Steel As", val: `${res.As_provided_sqin_per_ft.toFixed(2)} in\u00B2/ft`, sub: `Required: ${res.As_required_sqin_per_ft.toFixed(2)} in\u00B2/ft` },
+      { label: "Rebar Schedule", val: res.rebarRecommendation, sub: res.passSteel ? "Flexural Steel Pass" : "OVERSTRESSED - Increase Rebar Size" }
     ]);
 
     this.renderer.renderFootingAnalysis(res);
