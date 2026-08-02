@@ -1,7 +1,8 @@
 /**
  * Master Application State & Event Controller
  * Features:
- * - Interactive Custom Member Selection Print Submittal Package
+ * - Cross-Platform PWA & Standalone App Installation Support
+ * - Custom Selected Member Print Submittal Package
  * - ASCE 7 Wind Uplift Pressure Calculator Modal (q_z Velocity Pressure & Roof Suction)
  * - Interactive Field Guide & Examples Tab for all Input Fields
  * - AISC DG1 Steel Column Base Plate & Anchor Bolts Design Engine
@@ -26,6 +27,7 @@ class StructuralApp {
     this.renderer = null;
     this.lastResult = null;
     this.calculatedWindPsf = 0;
+    this.deferredInstallPrompt = null;
     this.masterPasscode = localStorage.getItem('structural_suite_passcode') || 'STRUCT2026';
     
     this.projects = this.loadProjectsFromStorage();
@@ -45,6 +47,7 @@ class StructuralApp {
 
   init() {
     this.setupAuth();
+    this.setupPwaInstaller();
     this.setupProjectHub();
     this.setupImportExport();
     this.setupMemberManager();
@@ -68,6 +71,33 @@ class StructuralApp {
     }
 
     this.recalculate();
+  }
+
+  setupPwaInstaller() {
+    const installBtn = document.getElementById('pwaInstallBtn');
+    if (!installBtn) return;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.deferredInstallPrompt = e;
+      installBtn.style.display = 'inline-flex';
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!this.deferredInstallPrompt) return;
+      this.deferredInstallPrompt.prompt();
+      const { outcome } = await this.deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        console.log('User installed the PWA app!');
+      }
+      this.deferredInstallPrompt = null;
+      installBtn.style.display = 'none';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installBtn.style.display = 'none';
+      this.deferredInstallPrompt = null;
+    });
   }
 
   setupPrintModal() {

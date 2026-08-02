@@ -1,0 +1,54 @@
+{
+  "name": "structural-engineering-calculator",
+  "version": "1.0.0",
+  "description": "Cross-platform Structural Engineering Calculator Suite for Steel, Concrete, Retaining Walls, & Timber Framing.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:pwa": "echo Building PWA distribution...",
+    "dist": "electron-builder",
+    "cap:add:ios": "cap add ios",
+    "cap:add:android": "cap add android",
+    "cap:copy": "cap copy"
+  },
+  "keywords": [
+    "structural",
+    "engineering",
+    "calculator",
+    "steel",
+    "concrete",
+    "timber",
+    "aisc",
+    "aci",
+    "nds",
+    "asce7"
+  ],
+  "author": "Antigravity Engineering",
+  "license": "MIT",
+  "devDependencies": {
+    "@capacitor/cli": "^5.0.0",
+    "@capacitor/core": "^5.0.0",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.0"
+  },
+  "build": {
+    "appId": "com.structuralcalc.app",
+    "productName": "Structural Engineering Suite",
+    "files": [
+      "index.html",
+      "index.css",
+      "manifest.json",
+      "sw.js",
+      "icons/**/*",
+      "js/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icons/icon-512.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icons/icon-512.png"
+    }
+  }
+}
