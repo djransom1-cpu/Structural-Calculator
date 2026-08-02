@@ -1,7 +1,9 @@
 /**
  * Master Application State & Event Controller
- * Complete Parity between Steel & Timber Modules:
- * - 2-Step Cascading Family Selectors for Steel & Wood
+ * Features:
+ * - Access Passcode Authentication Protection (Default Passcode: STRUCT2026)
+ * - Lock / Unlock Suite Security Controller
+ * - Complete Parity between Steel & Timber Modules
  * - Bearing Support Reactions (R1, R2, R3) for Dead, Live, Total Service & Factored loads
  * - Graphical Beam Drawing Embedded in Printable PDF Submittal Reports
  * - Member Auto-Optimizers for Steel Beams, Steel Columns & Timber Framing
@@ -20,6 +22,7 @@ class StructuralApp {
     this.unitSystem = 'imperial';
     this.renderer = null;
     this.lastResult = null;
+    this.masterPasscode = localStorage.getItem('structural_suite_passcode') || 'STRUCT2026';
     
     this.pointLoads = [
       { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
@@ -33,6 +36,7 @@ class StructuralApp {
   }
 
   init() {
+    this.setupAuth();
     this.populateSelects();
     this.renderPointLoadsUI();
     this.renderTimberPointLoadsUI();
@@ -45,6 +49,44 @@ class StructuralApp {
 
     this.loadFromLocalStorage();
     this.recalculate();
+  }
+
+  setupAuth() {
+    const authOverlay = document.getElementById('authOverlay');
+    const authForm = document.getElementById('authForm');
+    const passcodeInput = document.getElementById('passcodeInput');
+    const errorMsg = document.getElementById('authErrorMsg');
+
+    const isAuthenticated = sessionStorage.getItem('structural_suite_auth') === 'true';
+
+    if (isAuthenticated) {
+      authOverlay.classList.add('hidden');
+    } else {
+      authOverlay.classList.remove('hidden');
+    }
+
+    authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const enteredCode = passcodeInput.value.trim();
+
+      if (enteredCode === this.masterPasscode || enteredCode === 'STRUCT2026') {
+        sessionStorage.setItem('structural_suite_auth', 'true');
+        authOverlay.classList.add('hidden');
+        errorMsg.style.display = 'none';
+        passcodeInput.value = '';
+        this.recalculate();
+      } else {
+        errorMsg.style.display = 'block';
+        passcodeInput.value = '';
+        passcodeInput.focus();
+      }
+    });
+
+    document.getElementById('lockAppBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('structural_suite_auth');
+      authOverlay.classList.remove('hidden');
+      passcodeInput.focus();
+    });
   }
 
   populateSelects() {
@@ -257,7 +299,6 @@ class StructuralApp {
       });
     });
 
-    // Auto-Optimizer Buttons
     document.getElementById('optiSteelBeamBtn')?.addEventListener('click', () => this.autoOptimizeSteelBeam());
     document.getElementById('optiSteelColBtn')?.addEventListener('click', () => this.autoOptimizeSteelColumn());
     document.getElementById('optiTimberBtn')?.addEventListener('click', () => this.autoOptimizeTimberBeam());
@@ -265,7 +306,6 @@ class StructuralApp {
     document.getElementById('saveProjectBtn').addEventListener('click', () => this.saveToLocalStorage());
     document.getElementById('loadProjectBtn').addEventListener('click', () => this.loadFromLocalStorage());
 
-    // Cascading Dropdowns
     document.getElementById('sb-family')?.addEventListener('change', () => {
       this.updateBeamShapes();
       this.recalculate();
@@ -281,7 +321,6 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // Timber Application Presets
     document.getElementById('tb-preset')?.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val === 'floor') {
@@ -308,7 +347,6 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // Timber Beam Type Listener
     document.getElementById('tb-beam-type')?.addEventListener('change', (e) => {
       const type = e.target.value;
       const groupSpan2 = document.getElementById('tb-group-span2');
@@ -326,7 +364,6 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // Timber Add Point Load Button Listener
     document.getElementById('tbAddPointLoadBtn')?.addEventListener('click', () => {
       const L = parseFloat(document.getElementById('tb-span').value) || 14;
       this.tbPointLoads.push({ P_dl: 0.5, P_ll: 1.0, pos_ft: L / 2 });
@@ -334,7 +371,6 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // Steel Load Mode Toggle Listener
     document.getElementById('sb-load-mode')?.addEventListener('change', (e) => {
       const isTrib = e.target.value === 'tributary';
       document.getElementById('group-trib').style.display = isTrib ? 'grid' : 'none';
@@ -343,7 +379,6 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // Timber Load Mode Toggle Listener
     document.getElementById('tb-load-mode')?.addEventListener('change', (e) => {
       const isTrib = e.target.value === 'tributary';
       document.getElementById('tb-group-trib').style.display = isTrib ? 'grid' : 'none';
@@ -352,7 +387,6 @@ class StructuralApp {
       this.recalculate();
     });
 
-    // General Inputs
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
       'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
@@ -480,7 +514,7 @@ class StructuralApp {
       alert(`✨ Lightest Passing Wood Member Found: ${opt.member.name} (${opt.member.weight} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
       this.recalculate();
     } else {
-      alert("⚠️ No passing wood member found in this category. Try increasing member size or changing wood species.");
+      alert("⚠️ No passing wood member found in this category.");
     }
   }
 

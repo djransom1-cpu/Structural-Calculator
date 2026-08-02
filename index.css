@@ -1,72 +1,139 @@
 /* ==========================================================================
-   Structural Engineering Suite - CSS Design System & Layout
+   Structural Engineering Suite - Modern Design System & CSS Styles
    ========================================================================== */
 
 :root {
-  /* Dark Theme Palette (Default) */
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+
+  /* Color Palette - Dark Theme (Default) */
   --bg-color: #0f172a;
-  --panel-bg: rgba(30, 41, 59, 0.75);
+  --panel-bg: rgba(30, 41, 59, 0.7);
   --panel-border: rgba(255, 255, 255, 0.1);
-  --text-main: #f8fafc;
+  --text-color: #f8fafc;
   --text-muted: #94a3b8;
+  --primary-color: #3b82f6;
+  --primary-hover: #2563eb;
+  --accent-color: #06b6d4;
+  --pass-color: #22c55e;
+  --warn-color: #f59e0b;
+  --fail-color: #ef4444;
+
+  --card-bg: rgba(15, 23, 42, 0.6);
   --input-bg: #1e293b;
   --input-border: #334155;
-  --primary-accent: #3b82f6;
-  --primary-hover: #2563eb;
-  --card-bg: rgba(15, 23, 42, 0.6);
-  
-  /* Status Colors */
-  --pass-color: #22c55e;
-  --pass-bg: rgba(34, 197, 94, 0.15);
-  --warn-color: #f59e0b;
-  --warn-bg: rgba(245, 158, 11, 0.15);
-  --fail-color: #ef4444;
-  --fail-bg: rgba(239, 68, 68, 0.15);
-
-  --font-main: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-heading: 'Outfit', sans-serif;
+  --input-focus: #3b82f6;
 }
 
 body.light-theme {
-  --bg-color: #f1f5f9;
+  --bg-color: #f8fafc;
   --panel-bg: rgba(255, 255, 255, 0.85);
-  --panel-border: rgba(0, 0, 0, 0.1);
-  --text-main: #0f172a;
+  --panel-border: rgba(0, 0, 0, 0.08);
+  --text-color: #0f172a;
   --text-muted: #64748b;
-  --input-bg: #ffffff;
-  --input-border: #cbd5e1;
-  --primary-accent: #2563eb;
+  --primary-color: #2563eb;
   --primary-hover: #1d4ed8;
-  --card-bg: rgba(248, 250, 252, 0.8);
+  --card-bg: #ffffff;
+  --input-bg: #f1f5f9;
+  --input-border: #cbd5e1;
+  --input-focus: #2563eb;
 }
 
-/* Reset & Global Base */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   font-family: var(--font-main);
   background-color: var(--bg-color);
-  color: var(--text-main);
+  color: var(--text-color);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  line-height: 1.5;
+  overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Header */
+/* ==========================================================================
+   AUTHENTICATION PASSCODE MODAL OVERLAY
+   ========================================================================== */
+.auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  transition: opacity 0.3s ease;
+}
+
+.auth-overlay.hidden {
+  display: none !important;
+}
+
+.auth-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+  max-width: 420px;
+  width: 100%;
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.auth-icon {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+}
+
+.auth-title {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.auth-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.auth-error-msg {
+  color: var(--fail-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.15);
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--fail-color);
+}
+
+/* ==========================================================================
+   App Header & Navigation
+   ========================================================================== */
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
   background: var(--panel-bg);
-  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--panel-border);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-brand {
@@ -76,14 +143,14 @@ body {
 }
 
 .brand-icon {
-  font-size: 1.8rem;
+  font-size: 2rem;
 }
 
 .app-title {
   font-family: var(--font-heading);
   font-size: 1.25rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  color: var(--text-color);
 }
 
 .app-subtitle {
@@ -97,132 +164,149 @@ body {
   gap: 0.5rem;
 }
 
-/* Buttons */
 .btn {
-  font-family: var(--font-main);
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.5rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
   transition: all 0.2s ease;
 }
 
-.btn-outline {
-  background: transparent;
-  border-color: var(--input-border);
-  color: var(--text-main);
-}
-
-.btn-outline:hover {
-  background: var(--input-bg);
-}
-
 .btn-primary {
-  background: var(--primary-accent);
+  background-color: var(--primary-color);
   color: #ffffff;
 }
 
 .btn-primary:hover {
-  background: var(--primary-hover);
+  background-color: var(--primary-hover);
+}
+
+.btn-outline {
+  background-color: transparent;
+  border-color: var(--panel-border);
+  color: var(--text-color);
+}
+
+.btn-outline:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .btn-icon {
   padding: 0.5rem;
+  border-radius: 8px;
   background: transparent;
-  border-color: var(--input-border);
-  font-size: 1.1rem;
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
 }
 
-/* Navigation Module Tabs */
+/* Module Navigation Tabs */
 .module-nav {
   display: flex;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem 0;
-  background: var(--bg-color);
+  padding: 0.75rem 1.5rem;
+  background: rgba(15, 23, 42, 0.4);
+  border-bottom: 1px solid var(--panel-border);
   overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.module-nav::-webkit-scrollbar {
-  display: none;
 }
 
 .nav-tab {
-  font-family: var(--font-heading);
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 0.65rem 1.1rem;
-  border: 1px solid var(--panel-border);
-  border-bottom: none;
-  border-radius: 10px 10px 0 0;
-  background: var(--card-bg);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
 }
 
-.nav-tab.active {
-  background: var(--panel-bg);
-  color: var(--primary-accent);
-  border-color: var(--primary-accent);
+.nav-tab:hover {
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-/* Main Container Layout */
+.nav-tab.active {
+  color: var(--text-color);
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* App Container Layout */
 .app-container {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 1.25rem;
-  padding: 1.25rem 1.5rem;
+  grid-template-columns: 480px 1fr;
+  gap: 1.5rem;
+  padding: 1.5rem;
   flex: 1;
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .app-container {
     grid-template-columns: 1fr;
   }
 }
 
-/* Panel Glassmorphism */
 .panel {
   background: var(--panel-bg);
-  backdrop-filter: blur(12px);
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 1.25rem;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
 }
 
-/* Module Content Panels */
+.input-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .module-content {
   display: none;
 }
 
 .module-content.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .module-title {
   font-family: var(--font-heading);
-  font-size: 1.15rem;
-  margin-bottom: 0.25rem;
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .module-desc {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  margin-bottom: 1.25rem;
-  line-height: 1.4;
 }
 
 /* Form Inputs */
 .form-group {
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .form-row {
@@ -231,82 +315,79 @@ body {
   gap: 0.75rem;
 }
 
-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  margin-bottom: 0.35rem;
-}
-
 .form-control {
   width: 100%;
   padding: 0.6rem 0.8rem;
-  border-radius: 8px;
-  border: 1px solid var(--input-border);
   background-color: var(--input-bg);
-  color: var(--text-main);
-  font-family: var(--font-main);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  color: var(--text-color);
   font-size: 0.9rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: var(--font-main);
+  outline: none;
+  transition: border-color 0.2s ease;
 }
 
 .form-control:focus {
-  outline: none;
-  border-color: var(--primary-accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-color: var(--input-focus);
 }
 
-/* Output Panel - Status Badge & Utilization */
+/* Output Panel & Status Header */
+.output-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 .results-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--panel-border);
-  flex-wrap: wrap;
+  background: var(--card-bg);
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
 }
 
 .status-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 20px;
-  font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .status-badge.pass {
-  background: var(--pass-bg);
+  background: rgba(34, 197, 94, 0.15);
   color: var(--pass-color);
   border: 1px solid var(--pass-color);
 }
 
 .status-badge.fail {
-  background: var(--fail-bg);
+  background: rgba(239, 68, 68, 0.15);
   color: var(--fail-color);
   border: 1px solid var(--fail-color);
 }
 
 .utilization-bar-container {
   flex: 1;
-  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .utilization-label {
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin-bottom: 0.35rem;
 }
 
 .utilization-track {
   height: 8px;
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
-  background: var(--input-border);
   overflow: hidden;
 }
 
@@ -314,65 +395,67 @@ label {
   height: 100%;
   width: 0%;
   background: var(--pass-color);
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s ease;
+  transition: width 0.3s ease, background-color 0.3s ease;
 }
 
-/* Metrics Grid Cards */
+/* Metrics Grid */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.85rem;
-  margin-bottom: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
 }
 
 .metric-card {
   background: var(--card-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 0.85rem;
+  padding: 1rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .metric-label {
   font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.25rem;
+  letter-spacing: 0.05em;
 }
 
 .metric-value {
-  font-family: var(--font-heading);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: var(--text-main);
+  color: var(--text-color);
 }
 
 .metric-sub {
   font-size: 0.75rem;
   color: var(--text-muted);
-  margin-top: 0.2rem;
 }
 
-/* Canvas Visualizer Wrapper */
+/* Canvas Wrapper */
 .canvas-wrapper {
   background: var(--card-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 1rem;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .canvas-title {
-  font-family: var(--font-heading);
-  font-size: 0.95rem;
-  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
-canvas {
+#analysisCanvas {
   width: 100%;
   height: 340px;
-  display: block;
+  background: transparent;
+  border-radius: 6px;
 }
 
 /* Print Only Styles */
@@ -385,7 +468,7 @@ canvas {
     background: #ffffff !important;
     color: #000000 !important;
   }
-  .app-header, .module-nav, .app-container {
+  .app-header, .module-nav, .app-container, .auth-overlay {
     display: none !important;
   }
   .print-only {
@@ -403,8 +486,12 @@ canvas {
     margin-top: 1rem;
   }
   .print-table th, .print-table td {
-    border: 1px solid #ccc;
-    padding: 0.5rem 0.8rem;
+    border: 1px solid #cbd5e1;
+    padding: 0.6rem;
     text-align: left;
+    font-size: 0.85rem;
+  }
+  .print-table th {
+    background: #f1f5f9;
   }
 }

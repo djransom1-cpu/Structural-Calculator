@@ -18,6 +18,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="dark-theme">
+
+  <!-- AUTHENTICATION PASSCODE MODAL OVERLAY -->
+  <div id="authOverlay" class="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-icon">🔒</div>
+      <h2 class="auth-title">Restricted Access</h2>
+      <p class="auth-desc">This Structural Engineering Suite is in private development. Please enter your authorized access passcode to continue.</p>
+      
+      <form id="authForm" style="width:100%; display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+        <div class="form-group" style="text-align:left;">
+          <label for="passcodeInput" style="font-weight:600; color:var(--text-color);">Access Passcode</label>
+          <input type="password" id="passcodeInput" class="form-control" placeholder="Enter Access Code" required autofocus style="font-size:1.1rem; text-align:center; letter-spacing:0.15em;">
+        </div>
+        <div id="authErrorMsg" class="auth-error-msg" style="display:none;">⚠️ Invalid passcode. Access denied.</div>
+        <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:1rem; width:100%;">Unlock Suite</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Top Application Header -->
   <header class="app-header">
     <div class="header-brand">
@@ -37,6 +56,7 @@
       <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Light/Dark Theme">
         <span id="themeIcon">🌙</span>
       </button>
+      <button id="lockAppBtn" class="btn btn-outline" title="Lock App Access" style="color:var(--warn-color); border-color:var(--warn-color);">🔒 Lock Suite</button>
       <button id="printReportBtn" class="btn btn-primary" title="Print or Save PDF Report">
         📄 Print Submittal
       </button>
@@ -342,7 +362,7 @@
           <h2 class="module-title" style="margin:0;">Timber & Engineered Wood Analysis</h2>
           <button id="optiTimberBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Wood</button>
         </div>
-        <p class="module-desc">Supports Presets, Cantilevers, 2-Span Continuous, Area PSF, Point Loads & NDS NDS ASD/LRFD.</p>
+        <p class="module-desc">Supports Presets, Cantilevers, 2-Span Continuous, Area PSF, Point Loads & NDS ASD/LRFD.</p>
         
         <!-- Preset Selector -->
         <div class="form-group">
