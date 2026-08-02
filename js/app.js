@@ -1,10 +1,10 @@
 /**
  * Master Application State & Event Controller
- * Integrates:
+ * Features:
+ * - Bearing Support Reactions (R1, R2, R3) for Dead, Live, Total Service & Factored loads
+ * - Graphical Beam Drawing Embedded in Printable PDF Submittal Reports
  * - Member Auto-Optimizers for Beams & Columns
- * - Visual Canvas Diagrams for ALL 5 Modules
- * - Project Save / Load & LocalStorage Persistence
- * - Custom Submittal Header Report Generator
+ * - Project Save / Load Persistence
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
@@ -19,6 +19,7 @@ class StructuralApp {
     this.currentModule = 'steel-beam';
     this.unitSystem = 'imperial';
     this.renderer = null;
+    this.lastResult = null;
     this.pointLoads = [
       { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
     ];
@@ -191,7 +192,6 @@ class StructuralApp {
       });
     });
 
-    // Auto-Optimizer Buttons
     const optiBeamBtn = document.getElementById('optiSteelBeamBtn');
     if (optiBeamBtn) {
       optiBeamBtn.addEventListener('click', () => this.autoOptimizeSteelBeam());
@@ -202,11 +202,9 @@ class StructuralApp {
       optiColBtn.addEventListener('click', () => this.autoOptimizeSteelColumn());
     }
 
-    // Save & Load Project Buttons
     document.getElementById('saveProjectBtn').addEventListener('click', () => this.saveToLocalStorage());
     document.getElementById('loadProjectBtn').addEventListener('click', () => this.loadFromLocalStorage());
 
-    // Cascading Steel Family Listeners
     const sbFamilySelect = document.getElementById('sb-family');
     if (sbFamilySelect) {
       sbFamilySelect.addEventListener('change', () => {
@@ -223,7 +221,6 @@ class StructuralApp {
       });
     }
 
-    // Preset Listener
     const presetSelect = document.getElementById('sb-preset');
     if (presetSelect) {
       presetSelect.addEventListener('change', () => {
@@ -253,7 +250,6 @@ class StructuralApp {
       });
     }
 
-    // Beam Type Listener
     const beamTypeSelect = document.getElementById('sb-beam-type');
     if (beamTypeSelect) {
       beamTypeSelect.addEventListener('change', () => {
@@ -274,7 +270,6 @@ class StructuralApp {
       });
     }
 
-    // Add Point Load Button Listener
     const addPtBtn = document.getElementById('addPointLoadBtn');
     if (addPtBtn) {
       addPtBtn.addEventListener('click', () => {
@@ -285,7 +280,6 @@ class StructuralApp {
       });
     }
 
-    // Steel Load Mode Toggle Listener
     const loadModeSelect = document.getElementById('sb-load-mode');
     if (loadModeSelect) {
       loadModeSelect.addEventListener('change', () => {
@@ -297,7 +291,6 @@ class StructuralApp {
       });
     }
 
-    // Input Change Listeners
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
       'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
@@ -375,7 +368,7 @@ class StructuralApp {
       alert(`✨ Lightest Passing Section Found: ${opt.section.name} (${opt.section.weight} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
       this.recalculate();
     } else {
-      alert("⚠️ No passing section found in this family for the current loads/span. Try increasing beam depth or family.");
+      alert("⚠️ No passing section found in this family.");
     }
   }
 
@@ -470,22 +463,31 @@ class StructuralApp {
     };
 
     const res = analyzeSteelBeam(inputs);
+    this.lastResult = res;
     this.updateStatus(res.isPass, res.stressRatio * 100);
 
     const totalPointLoad = this.pointLoads.reduce((sum, p) => sum + p.P_dl + p.P_ll, 0);
+    const r = res.reactions;
 
     const stressLabel = res.method === 'ASD' ? 'Bending Stress \u03C3' : 'Factored Moment Mu';
     const stressVal = res.method === 'ASD' ? `${res.bendingStress_ksi.toFixed(2)} ksi` : `${res.M_max_kipft.toFixed(1)} kip-ft`;
     const stressSub = res.method === 'ASD' ? `Allowable: ${res.allowableStress_ksi.toFixed(2)} ksi` : `Capacity \u03C6Mn: ${res.allowableStress_ksi.toFixed(1)} kip-ft`;
 
-    this.renderMetrics([
+    const metrics = [
       { label: "Section & Type", val: res.sectionName, sub: `Type: ${section.type} | Config: ${res.beamType.toUpperCase()}` },
       { label: "Uniform Load w", val: `${(res.w_service_kft * 1000).toFixed(0)} plf`, sub: `Factored: ${(res.w_factored_kft * 1000).toFixed(0)} plf` },
-      { label: "Point Loads", val: `${totalPointLoad.toFixed(1)} kips`, sub: `${this.pointLoads.length} load location(s)` },
+      { label: "Left Support Reaction R1", val: `${r.R1.service.toFixed(2)} kips`, sub: `DL: ${r.R1.dl.toFixed(2)}k | LL: ${r.R1.ll.toFixed(2)}k | Factored: ${r.R1.factored.toFixed(2)}k` },
+      { label: "Right Support Reaction R2", val: `${r.R2.service.toFixed(2)} kips`, sub: `DL: ${r.R2.dl.toFixed(2)}k | LL: ${r.R2.ll.toFixed(2)}k | Factored: ${r.R2.factored.toFixed(2)}k` },
       { label: stressLabel, val: stressVal, sub: stressSub },
       { label: "Deflection Live \u03B4_LL", val: `${res.delta_live_in.toFixed(3)}"`, sub: `Limit: ${res.L360_in.toFixed(3)}" (${res.passLiveDeflect ? 'Pass' : 'FAIL'})` },
       { label: "Deflection Total \u03B4_TL", val: `${res.delta_total_in.toFixed(3)}"`, sub: `Limit: ${res.L240_in.toFixed(3)}" (${res.passTotalDeflect ? 'Pass' : 'FAIL'})` }
-    ]);
+    ];
+
+    if (res.beamType === 'two-span') {
+      metrics.splice(4, 0, { label: "Center Support Reaction R3", val: `${r.R3.service.toFixed(2)} kips`, sub: `DL: ${r.R3.dl.toFixed(2)}k | LL: ${r.R3.ll.toFixed(2)}k | Factored: ${r.R3.factored.toFixed(2)}k` });
+    }
+
+    this.renderMetrics(metrics);
 
     this.renderer.renderBeamAnalysis({
       w_kft: res.w_service_kft,
@@ -511,6 +513,7 @@ class StructuralApp {
     };
 
     const res = analyzeSteelColumn(inputs);
+    this.lastResult = res;
     this.updateStatus(res.isPass, res.capacityRatio * 100);
 
     this.renderMetrics([
@@ -535,6 +538,7 @@ class StructuralApp {
     };
 
     const res = analyzeConcreteFooting(inputs);
+    this.lastResult = res;
     this.updateStatus(res.isPass, res.bearingRatio * 100);
 
     this.renderMetrics([
@@ -557,6 +561,7 @@ class StructuralApp {
     };
 
     const res = analyzeRetainingWall(inputs);
+    this.lastResult = res;
     this.updateStatus(res.isPass, (1.5 / Math.min(res.FOS_overturning, res.FOS_sliding)) * 100);
 
     this.renderMetrics([
@@ -578,6 +583,7 @@ class StructuralApp {
     };
 
     const res = analyzeTimberMember(inputs);
+    this.lastResult = res;
     this.updateStatus(res.isPass, res.stressRatio * 100);
 
     this.renderMetrics([
@@ -620,16 +626,61 @@ class StructuralApp {
 
   generatePrintReport() {
     const eng = document.getElementById('rep-engineer').value || 'John Doe, PE';
-    const comp = document.getElementById('rep-company').value || 'Apex Engineering';
+    const comp = document.getElementById('rep-company').value || 'Apex Engineering LLC';
     const proj = document.getElementById('rep-project').value || 'Commercial Structure';
     const client = document.getElementById('rep-client').value || 'BuildRight Construction';
 
     document.getElementById('printMetaInfo').innerHTML = `
-      <strong>Engineer:</strong> ${eng} | <strong>Company:</strong> ${comp} | <strong>Date:</strong> ${new Date().toLocaleDateString()}<br>
-      <strong>Project:</strong> ${proj} | <strong>Client:</strong> ${client}
+      <strong>Engineer / Designer:</strong> ${eng} | <strong>Company:</strong> ${comp} | <strong>Date:</strong> ${new Date().toLocaleDateString()}<br>
+      <strong>Project Name:</strong> ${proj} | <strong>Client / Contractor:</strong> ${client}
     `;
 
-    const body = document.getElementById('printBody');
+    const canvas = document.getElementById('analysisCanvas');
+    const canvasImgData = canvas ? canvas.toDataURL("image/png") : '';
+
+    let reactionsTableHTML = '';
+    if (this.currentModule === 'steel-beam' && this.lastResult && this.lastResult.reactions) {
+      const r = this.lastResult.reactions;
+      reactionsTableHTML = `
+        <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">BEARING POINT SUPPORT REACTIONS</h4>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Support Location</th>
+              <th>Dead Load (DL)</th>
+              <th>Live Load (LL)</th>
+              <th>Total Service Reaction</th>
+              <th>Factored Load (LRFD/ASD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Left Bearing Support (R1)</strong></td>
+              <td>${r.R1.dl.toFixed(2)} kips</td>
+              <td>${r.R1.ll.toFixed(2)} kips</td>
+              <td><strong>${r.R1.service.toFixed(2)} kips</strong></td>
+              <td>${r.R1.factored.toFixed(2)} kips</td>
+            </tr>
+            <tr>
+              <td><strong>Right Bearing Support (R2)</strong></td>
+              <td>${r.R2.dl.toFixed(2)} kips</td>
+              <td>${r.R2.ll.toFixed(2)} kips</td>
+              <td><strong>${r.R2.service.toFixed(2)} kips</strong></td>
+              <td>${r.R2.factored.toFixed(2)} kips</td>
+            </tr>
+            ${this.lastResult.beamType === 'two-span' ? `
+            <tr>
+              <td><strong>Center Bearing Support (R3)</strong></td>
+              <td>${r.R3.dl.toFixed(2)} kips</td>
+              <td>${r.R3.ll.toFixed(2)} kips</td>
+              <td><strong>${r.R3.service.toFixed(2)} kips</strong></td>
+              <td>${r.R3.factored.toFixed(2)} kips</td>
+            </tr>` : ''}
+          </tbody>
+        </table>
+      `;
+    }
+
     const metricsCards = Array.from(document.querySelectorAll('.metric-card')).map(card => {
       const label = card.querySelector('.metric-label').textContent;
       const val = card.querySelector('.metric-value').textContent;
@@ -637,20 +688,30 @@ class StructuralApp {
       return `<tr><td><strong>${label}</strong></td><td>${val}</td><td>${sub}</td></tr>`;
     }).join('');
 
+    const body = document.getElementById('printBody');
     body.innerHTML = `
-      <h3>Structural Analysis Submittal - Module: ${this.currentModule.toUpperCase()}</h3>
+      <h3>Module Analysis Results: ${this.currentModule.toUpperCase()}</h3>
+      
+      ${reactionsTableHTML}
+
+      <h4 style="margin-top:1.25rem; font-size:1rem; color:#1e293b;">SUMMARY CALCULATION CHECKS</h4>
       <table class="print-table">
         <thead>
           <tr>
             <th>Parameter / Check</th>
-            <th>Value</th>
-            <th>Notes / Code Limits</th>
+            <th>Calculated Value</th>
+            <th>Notes / Code Allowables</th>
           </tr>
         </thead>
         <tbody>
           ${metricsCards}
         </tbody>
       </table>
+
+      <div style="margin-top:1.5rem; page-break-inside:avoid;">
+        <h4 style="font-size:1rem; color:#1e293b; margin-bottom:0.5rem;">EXPRESSED LOADS & ANALYSIS DIAGRAM DRAWING</h4>
+        <img src="${canvasImgData}" style="width:100%; max-height:300px; border:1px solid #cbd5e1; border-radius:6px;">
+      </div>
     `;
   }
 }
