@@ -1,8 +1,8 @@
 /**
  * Master Application State & Event Controller
  * Features:
- * - Access Passcode Authentication Protection (Default Passcode: STRUCT2026)
- * - Lock / Unlock Suite Security Controller
+ * - Dynamic Built-Up Header Generator (# Plies x Ply Width x Member Depth)
+ * - Access Passcode Authentication Protection
  * - Complete Parity between Steel & Timber Modules
  * - Bearing Support Reactions (R1, R2, R3) for Dead, Live, Total Service & Factored loads
  * - Graphical Beam Drawing Embedded in Printable PDF Submittal Reports
@@ -148,22 +148,33 @@ class StructuralApp {
 
   updateTimberMembers() {
     const familySelect = document.getElementById('tb-family');
+    const builtUpControls = document.getElementById('group-builtup-controls');
+    const standardSizeControl = document.getElementById('group-standard-size');
     const sizeSelect = document.getElementById('tb-size');
-    if (!familySelect || !sizeSelect) return;
 
-    const family = familySelect.value || 'sawn';
-    sizeSelect.innerHTML = '';
+    if (!familySelect) return;
 
-    const matchingMembers = TIMBER_MEMBERS.filter(m => m.category === family);
-    matchingMembers.forEach(mem => {
-      const opt = document.createElement('option');
-      opt.value = mem.name;
-      opt.textContent = `${mem.name} (Ix: ${mem.Ix} in⁴ | Sx: ${mem.Sx} in³)`;
-      sizeSelect.appendChild(opt);
-    });
+    const family = familySelect.value || 'builtup';
 
-    if (matchingMembers.length > 0) {
-      sizeSelect.value = matchingMembers[0].name;
+    if (family === 'builtup') {
+      builtUpControls.style.display = 'flex';
+      standardSizeControl.style.display = 'none';
+    } else {
+      builtUpControls.style.display = 'none';
+      standardSizeControl.style.display = 'flex';
+
+      sizeSelect.innerHTML = '';
+      const matchingMembers = TIMBER_MEMBERS.filter(m => m.category === family);
+      matchingMembers.forEach(mem => {
+        const opt = document.createElement('option');
+        opt.value = mem.name;
+        opt.textContent = `${mem.name} (Ix: ${mem.Ix} in⁴ | Sx: ${mem.Sx} in³)`;
+        sizeSelect.appendChild(opt);
+      });
+
+      if (matchingMembers.length > 0) {
+        sizeSelect.value = matchingMembers[0].name;
+      }
     }
   }
 
@@ -394,7 +405,8 @@ class StructuralApp {
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
       'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
-      'tb-species', 'tb-size', 'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
+      'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
+      'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
       'tb-trib-left', 'tb-trib-right', 'tb-dl', 'tb-ll', 'tb-deflect-live', 'tb-deflect-total',
       'rep-engineer', 'rep-company', 'rep-project', 'rep-client'
     ];
@@ -490,8 +502,11 @@ class StructuralApp {
 
   autoOptimizeTimberBeam() {
     const family = document.getElementById('tb-family').value;
+    const plyWidth = parseFloat(document.getElementById('tb-ply-width').value) || 1.5;
+
     const inputs = {
       family,
+      plyWidth,
       beamType: document.getElementById('tb-beam-type').value,
       speciesName: document.getElementById('tb-species').value,
       loadMode: document.getElementById('tb-load-mode').value,
@@ -510,8 +525,13 @@ class StructuralApp {
 
     const opt = findLightestTimberBeam(inputs);
     if (opt.found) {
-      document.getElementById('tb-size').value = opt.member.name;
-      alert(`✨ Lightest Passing Wood Member Found: ${opt.member.name} (${opt.member.weight} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
+      if (family === 'builtup') {
+        document.getElementById('tb-plies').value = opt.builtUpParams.numPlies;
+        document.getElementById('tb-depth').value = opt.builtUpParams.depth;
+      } else {
+        document.getElementById('tb-size').value = opt.member.name;
+      }
+      alert(`✨ Lightest Passing Wood Member Found: ${opt.member.name} (${opt.member.weight.toFixed(1)} lb/ft | Utilization: ${(opt.result.stressRatio * 100).toFixed(1)}%)`);
       this.recalculate();
     } else {
       alert("⚠️ No passing wood member found in this category.");
@@ -528,6 +548,9 @@ class StructuralApp {
       rw_height: document.getElementById('rw-height').value,
       tb_family: document.getElementById('tb-family').value,
       tb_species: document.getElementById('tb-species').value,
+      tb_plies: document.getElementById('tb-plies').value,
+      tb_ply_width: document.getElementById('tb-ply-width').value,
+      tb_depth: document.getElementById('tb-depth').value,
       tb_size: document.getElementById('tb-size').value,
       pointLoads: this.pointLoads,
       tbPointLoads: this.tbPointLoads
@@ -546,6 +569,9 @@ class StructuralApp {
       if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
       if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
       this.updateTimberMembers();
+      if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
+      if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
+      if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
       if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
       if (data.pointLoads) this.pointLoads = data.pointLoads;
       if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
@@ -708,9 +734,16 @@ class StructuralApp {
   }
 
   runTimber() {
+    const family = document.getElementById('tb-family').value;
+    const isBuiltUp = family === 'builtup';
+
     const inputs = {
       beamType: document.getElementById('tb-beam-type').value,
       speciesName: document.getElementById('tb-species').value,
+      isBuiltUp,
+      numPlies: parseInt(document.getElementById('tb-plies').value) || 2,
+      plyWidth: parseFloat(document.getElementById('tb-ply-width').value) || 1.5,
+      depth: parseFloat(document.getElementById('tb-depth').value) || 9.25,
       sizeName: document.getElementById('tb-size').value,
       loadMode: document.getElementById('tb-load-mode').value,
       L_ft: parseFloat(document.getElementById('tb-span').value) || 14,

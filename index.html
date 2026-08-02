@@ -356,13 +356,13 @@
         </div>
       </div>
 
-      <!-- TIMBER MODULE (MATCHES STEEL LAYOUT FULLY) -->
+      <!-- TIMBER MODULE WITH DYNAMIC BUILT-UP BUILDER -->
       <div id="mod-timber" class="module-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
           <h2 class="module-title" style="margin:0;">Timber & Engineered Wood Analysis</h2>
           <button id="optiTimberBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Wood</button>
         </div>
-        <p class="module-desc">Supports Presets, Cantilevers, 2-Span Continuous, Area PSF, Point Loads & NDS ASD/LRFD.</p>
+        <p class="module-desc">Supports Built-Up Headers (# Plies x Width x Depth), Presets, Cantilevers & NDS ASD/LRFD.</p>
         
         <!-- Preset Selector -->
         <div class="form-group">
@@ -392,25 +392,68 @@
         </div>
 
         <!-- 2-Step Cascading Wood Member Selection -->
-        <div class="form-row">
+        <div class="form-group">
+          <label for="tb-family">1. Select Wood Family / Member Mode</label>
+          <select id="tb-family" class="form-control">
+            <option value="builtup">🛠️ Custom Built-Up Header / Beam (# Plies x Width x Depth)</option>
+            <option value="sawn">Dimension Sawn Lumber (2x4 to 4x12)</option>
+            <option value="timber">Heavy Timber Posts & Beams (6x6 to 12x12)</option>
+            <option value="lvl">LVL Engineered Beams (1-3/4" Plies)</option>
+            <option value="glulam">Glulam Architectural Beams</option>
+            <option value="psl">PSL Parallam Heavy Beams</option>
+            <option value="ijoist">TJI Wood I-Joists</option>
+          </select>
+        </div>
+
+        <!-- DYNAMIC BUILT-UP HEADER CONTROLS (# PLIES, PLY WIDTH, DEPTH) -->
+        <div id="group-builtup-controls" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2);">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">🛠️ Built-Up Header Configuration</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tb-plies"># of Plies</label>
+              <select id="tb-plies" class="form-control">
+                <option value="1">1-Ply</option>
+                <option value="2" selected>2-Ply (Standard Header)</option>
+                <option value="3">3-Ply</option>
+                <option value="4">4-Ply</option>
+                <option value="5">5-Ply</option>
+                <option value="6">6-Ply</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tb-ply-width">Ply Width (in)</label>
+              <select id="tb-ply-width" class="form-control">
+                <option value="1.5" selected>1.5" (Sawn Lumber 2x)</option>
+                <option value="1.75">1.75" (LVL Ply)</option>
+                <option value="2.5">2.5" (Heavy Sawn 3x)</option>
+                <option value="3.5">3.5" (Post / Timber 4x)</option>
+              </select>
+            </div>
+          </div>
           <div class="form-group">
-            <label for="tb-family">1. Select Wood Family</label>
-            <select id="tb-family" class="form-control">
-              <option value="sawn">Dimension Sawn Lumber (2x4 to 4x12)</option>
-              <option value="timber">Heavy Timber Posts & Beams (6x6 to 12x12)</option>
-              <option value="lvl1">LVL 1-Ply Headers (1-3/4" Thick)</option>
-              <option value="lvl2">LVL 2-Ply Headers (3-1/2" Thick)</option>
-              <option value="lvl3">LVL 3-Ply Headers (5-1/4" Thick)</option>
-              <option value="lvl4">LVL 4-Ply Headers (7" Thick)</option>
-              <option value="glulam">Glulam Beams (3-1/8", 5-1/8", 6-3/4" Wide)</option>
-              <option value="psl">PSL Parallam Beams (3-1/2", 5-1/4", 7" Wide)</option>
-              <option value="ijoist">TJI Wood I-Joists (110, 210, 360, 560)</option>
+            <label for="tb-depth">Member Depth / Height (in)</label>
+            <select id="tb-depth" class="form-control">
+              <option value="3.5">3.5" (2x4 / 4x4)</option>
+              <option value="5.5">5.5" (2x6 / 6x6)</option>
+              <option value="7.25">7.25" (2x8 / LVL 7-1/4)</option>
+              <option value="9.25" selected>9.25" (2x10 / LVL 9-1/4)</option>
+              <option value="9.5">9.5" (LVL / TJI 9-1/2)</option>
+              <option value="11.25">11.25" (2x12 / LVL 11-1/4)</option>
+              <option value="11.875">11.875" (LVL 11-7/8)</option>
+              <option value="14.0">14.0" (LVL / Glulam 14")</option>
+              <option value="16.0">16.0" (LVL / Glulam 16")</option>
+              <option value="18.0">18.0" (LVL / Glulam 18")</option>
+              <option value="20.0">20.0" (Heavy LVL 20")</option>
+              <option value="22.0">22.0" (Heavy LVL 22")</option>
+              <option value="24.0">24.0" (Heavy LVL / Glulam 24")</option>
             </select>
           </div>
-          <div class="form-group">
-            <label for="tb-size">2. Select Wood Section</label>
-            <select id="tb-size" class="form-control"></select>
-          </div>
+        </div>
+
+        <!-- STANDARD SINGLE DROPDOWN (FOR NON-BUILTUP FAMILIES) -->
+        <div class="form-group" id="group-standard-size" style="display:none;">
+          <label for="tb-size">2. Select Wood Section</label>
+          <select id="tb-size" class="form-control"></select>
         </div>
 
         <div class="form-row">

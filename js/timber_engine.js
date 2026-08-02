@@ -1,8 +1,6 @@
 /**
  * Timber & Engineered Wood Calculation Engine (NDS 2018 Standards)
- * Complete parity with Steel Beam layout:
- * Supports Presets, Cantilevers, 2-Span Continuous, Area PSF + Tributary Widths,
- * Dynamic Point Loads, Bearing Support Reactions (R1, R2, R3), NDS ASD/LRFD.
+ * Includes Dynamic Built-Up Member Generator (# of Plies, Ply Width, Member Depth)
  */
 
 export const TIMBER_SPECIES = [
@@ -37,15 +35,13 @@ export const TIMBER_SPECIES = [
 ];
 
 export const TIMBER_FAMILIES = {
+  'builtup': 'Custom Built-Up Header / Beam (# Plies x Width x Depth)',
   'sawn': 'Dimension Sawn Lumber (2x4 to 4x12)',
   'timber': 'Heavy Timber Posts & Beams (6x6 to 12x12)',
-  'lvl1': 'LVL 1-Ply Headers (1-3/4" Thick)',
-  'lvl2': 'LVL 2-Ply Headers (3-1/2" Thick)',
-  'lvl3': 'LVL 3-Ply Headers (5-1/4" Thick)',
-  'lvl4': 'LVL 4-Ply Headers (7" Thick)',
-  'glulam': 'Glulam Beams (3-1/8", 5-1/8", 6-3/4" Wide)',
-  'psl': 'PSL Parallam Beams (3-1/2", 5-1/4", 7" Wide)',
-  'ijoist': 'TJI Wood I-Joists (110, 210, 360, 560)'
+  'lvl': 'LVL Engineered Beams (1-3/4" Plies)',
+  'glulam': 'Glulam Architectural Beams',
+  'psl': 'PSL Parallam Heavy Beams',
+  'ijoist': 'TJI Wood I-Joists'
 };
 
 export const TIMBER_MEMBERS = [
@@ -75,40 +71,20 @@ export const TIMBER_MEMBERS = [
   { name: "10x10", category: "timber", b: 9.5, d: 9.5, Area: 90.25, Sx: 142.90, Ix: 678.76, weight: 25.7 },
   { name: "12x12", category: "timber", b: 11.5, d: 11.5, Area: 132.25, Sx: 253.48, Ix: 1457.51, weight: 37.7 },
 
-  // 3. LVL 1-Ply (1-3/4")
-  { name: "1-Ply LVL 1-3/4x7-1/4", category: "lvl1", b: 1.75, d: 7.25, Area: 12.69, Sx: 15.33, Ix: 55.57, weight: 3.7 },
-  { name: "1-Ply LVL 1-3/4x9-1/4", category: "lvl1", b: 1.75, d: 9.25, Area: 16.19, Sx: 24.96, Ix: 115.42, weight: 4.7 },
-  { name: "1-Ply LVL 1-3/4x9-1/2", category: "lvl1", b: 1.75, d: 9.50, Area: 16.63, Sx: 26.32, Ix: 125.04, weight: 4.8 },
-  { name: "1-Ply LVL 1-3/4x11-1/4", category: "lvl1", b: 1.75, d: 11.25, Area: 19.69, Sx: 36.91, Ix: 207.64, weight: 5.7 },
-  { name: "1-Ply LVL 1-3/4x11-7/8", category: "lvl1", b: 1.75, d: 11.875, Area: 20.78, Sx: 41.13, Ix: 244.22, weight: 6.0 },
-  { name: "1-Ply LVL 1-3/4x14", category: "lvl1", b: 1.75, d: 14.0, Area: 24.50, Sx: 57.17, Ix: 400.17, weight: 7.1 },
-  { name: "1-Ply LVL 1-3/4x16", category: "lvl1", b: 1.75, d: 16.0, Area: 28.00, Sx: 74.67, Ix: 597.33, weight: 8.1 },
-  { name: "1-Ply LVL 1-3/4x18", category: "lvl1", b: 1.75, d: 18.0, Area: 31.50, Sx: 94.50, Ix: 850.50, weight: 9.1 },
+  // 3. LVL Members
+  { name: "LVL 1-3/4x7-1/4", category: "lvl", b: 1.75, d: 7.25, Area: 12.69, Sx: 15.33, Ix: 55.57, weight: 3.7 },
+  { name: "LVL 1-3/4x9-1/4", category: "lvl", b: 1.75, d: 9.25, Area: 16.19, Sx: 24.96, Ix: 115.42, weight: 4.7 },
+  { name: "LVL 1-3/4x9-1/2", category: "lvl", b: 1.75, d: 9.50, Area: 16.63, Sx: 26.32, Ix: 125.04, weight: 4.8 },
+  { name: "LVL 1-3/4x11-1/4", category: "lvl", b: 1.75, d: 11.25, Area: 19.69, Sx: 36.91, Ix: 207.64, weight: 5.7 },
+  { name: "LVL 1-3/4x11-7/8", category: "lvl", b: 1.75, d: 11.875, Area: 20.78, Sx: 41.13, Ix: 244.22, weight: 6.0 },
+  { name: "LVL 1-3/4x14", category: "lvl", b: 1.75, d: 14.0, Area: 24.50, Sx: 57.17, Ix: 400.17, weight: 7.1 },
+  { name: "LVL 1-3/4x16", category: "lvl", b: 1.75, d: 16.0, Area: 28.00, Sx: 74.67, Ix: 597.33, weight: 8.1 },
+  { name: "LVL 1-3/4x18", category: "lvl", b: 1.75, d: 18.0, Area: 31.50, Sx: 94.50, Ix: 850.50, weight: 9.1 },
+  { name: "LVL 1-3/4x20", category: "lvl", b: 1.75, d: 20.0, Area: 35.00, Sx: 116.67, Ix: 1166.67, weight: 10.1 },
+  { name: "LVL 1-3/4x22", category: "lvl", b: 1.75, d: 22.0, Area: 38.50, Sx: 141.17, Ix: 1552.83, weight: 11.1 },
+  { name: "LVL 1-3/4x24", category: "lvl", b: 1.75, d: 24.0, Area: 42.00, Sx: 168.00, Ix: 2016.00, weight: 12.1 },
 
-  // 4. LVL 2-Ply (3-1/2")
-  { name: "2-Ply LVL 3-1/2x7-1/4", category: "lvl2", b: 3.5, d: 7.25, Area: 25.38, Sx: 30.66, Ix: 111.15, weight: 7.4 },
-  { name: "2-Ply LVL 3-1/2x9-1/4", category: "lvl2", b: 3.5, d: 9.25, Area: 32.38, Sx: 49.91, Ix: 230.84, weight: 9.4 },
-  { name: "2-Ply LVL 3-1/2x9-1/2", category: "lvl2", b: 3.5, d: 9.50, Area: 33.25, Sx: 52.65, Ix: 250.07, weight: 9.6 },
-  { name: "2-Ply LVL 3-1/2x11-1/4", category: "lvl2", b: 3.5, d: 11.25, Area: 39.38, Sx: 73.83, Ix: 415.28, weight: 11.4 },
-  { name: "2-Ply LVL 3-1/2x11-7/8", category: "lvl2", b: 3.5, d: 11.875, Area: 41.56, Sx: 82.26, Ix: 488.44, weight: 12.0 },
-  { name: "2-Ply LVL 3-1/2x14", category: "lvl2", b: 3.5, d: 14.0, Area: 49.00, Sx: 114.33, Ix: 800.33, weight: 14.2 },
-  { name: "2-Ply LVL 3-1/2x16", category: "lvl2", b: 3.5, d: 16.0, Area: 56.00, Sx: 149.33, Ix: 1194.67, weight: 16.2 },
-  { name: "2-Ply LVL 3-1/2x18", category: "lvl2", b: 3.5, d: 18.0, Area: 63.00, Sx: 189.00, Ix: 1701.00, weight: 18.2 },
-
-  // 5. LVL 3-Ply (5-1/4")
-  { name: "3-Ply LVL 5-1/4x9-1/4", category: "lvl3", b: 5.25, d: 9.25, Area: 48.56, Sx: 74.87, Ix: 346.26, weight: 14.1 },
-  { name: "3-Ply LVL 5-1/4x11-7/8", category: "lvl3", b: 5.25, d: 11.875, Area: 62.34, Sx: 123.39, Ix: 732.66, weight: 18.0 },
-  { name: "3-Ply LVL 5-1/4x14", category: "lvl3", b: 5.25, d: 14.0, Area: 73.50, Sx: 171.50, Ix: 1200.50, weight: 21.3 },
-  { name: "3-Ply LVL 5-1/4x16", category: "lvl3", b: 5.25, d: 16.0, Area: 84.00, Sx: 224.00, Ix: 1792.00, weight: 24.3 },
-  { name: "3-Ply LVL 5-1/4x18", category: "lvl3", b: 5.25, d: 18.0, Area: 94.50, Sx: 283.50, Ix: 2551.50, weight: 27.3 },
-
-  // 6. LVL 4-Ply (7")
-  { name: "4-Ply LVL 7x11-7/8", category: "lvl4", b: 7.0, d: 11.875, Area: 83.13, Sx: 164.52, Ix: 976.88, weight: 24.0 },
-  { name: "4-Ply LVL 7x14", category: "lvl4", b: 7.0, d: 14.0, Area: 98.00, Sx: 228.67, Ix: 1600.67, weight: 28.4 },
-  { name: "4-Ply LVL 7x16", category: "lvl4", b: 7.0, d: 16.0, Area: 112.00, Sx: 298.67, Ix: 2389.33, weight: 32.4 },
-  { name: "4-Ply LVL 7x18", category: "lvl4", b: 7.0, d: 18.0, Area: 126.00, Sx: 378.00, Ix: 3402.00, weight: 36.4 },
-
-  // 7. Glulam Beams
+  // 4. Glulam Beams
   { name: "Glulam 3-1/8x9", category: "glulam", b: 3.125, d: 9.0, Area: 28.13, Sx: 42.19, Ix: 189.84, weight: 7.8 },
   { name: "Glulam 3-1/8x12", category: "glulam", b: 3.125, d: 12.0, Area: 37.50, Sx: 75.00, Ix: 450.00, weight: 10.4 },
   { name: "Glulam 3-1/8x15", category: "glulam", b: 3.125, d: 15.0, Area: 46.88, Sx: 117.19, Ix: 878.91, weight: 13.0 },
@@ -119,7 +95,7 @@ export const TIMBER_MEMBERS = [
   { name: "Glulam 6-3/4x18", category: "glulam", b: 6.75, d: 18.0, Area: 121.50, Sx: 364.50, Ix: 3280.50, weight: 33.7 },
   { name: "Glulam 6-3/4x24", category: "glulam", b: 6.75, d: 24.0, Area: 162.00, Sx: 648.00, Ix: 7776.00, weight: 45.0 },
 
-  // 8. PSL Parallam Beams
+  // 5. PSL Parallam Beams
   { name: "PSL 3-1/2x9-1/4", category: "psl", b: 3.5, d: 9.25, Area: 32.38, Sx: 49.91, Ix: 230.84, weight: 9.6 },
   { name: "PSL 3-1/2x11-7/8", category: "psl", b: 3.5, d: 11.875, Area: 41.56, Sx: 82.26, Ix: 488.44, weight: 12.3 },
   { name: "PSL 5-1/4x11-7/8", category: "psl", b: 5.25, d: 11.875, Area: 62.34, Sx: 123.39, Ix: 732.66, weight: 18.5 },
@@ -127,7 +103,7 @@ export const TIMBER_MEMBERS = [
   { name: "PSL 7x14", category: "psl", b: 7.0, d: 14.0, Area: 98.00, Sx: 228.67, Ix: 1600.67, weight: 29.0 },
   { name: "PSL 7x18", category: "psl", b: 7.0, d: 18.0, Area: 126.00, Sx: 378.00, Ix: 3402.00, weight: 37.3 },
 
-  // 9. TJI Wood I-Joists
+  // 6. TJI Wood I-Joists
   { name: "TJI 110 (9-1/2\")", category: "ijoist", b: 1.75, d: 9.5, Area: 12.0, Sx: 14.5, Ix: 98.0, weight: 2.2 },
   { name: "TJI 110 (11-7/8\")", category: "ijoist", b: 1.75, d: 11.875, Area: 14.5, Sx: 20.8, Ix: 178.0, weight: 2.6 },
   { name: "TJI 210 (11-7/8\")", category: "ijoist", b: 2.06, d: 11.875, Area: 16.2, Sx: 24.5, Ix: 212.0, weight: 2.9 },
@@ -147,7 +123,7 @@ export function getMemberByName(name) {
 }
 
 /**
- * Perform complete Timber Beam Analysis with Identical Capabilities to Steel Engine
+ * Perform complete Timber Beam Analysis with Built-Up Member Generator (# Plies x Ply Width x Depth)
  */
 export function analyzeTimberBeam(inputs) {
   const beamType = inputs.beamType || 'single';
@@ -155,10 +131,37 @@ export function analyzeTimberBeam(inputs) {
   const L2_ft = inputs.L2_ft || 0;
   const L1_in = L1_ft * 12;
   const species = getSpeciesByName(inputs.speciesName);
-  const member = getMemberByName(inputs.sizeName);
+
+  let member = null;
+
+  if (inputs.isBuiltUp) {
+    const numPlies = inputs.numPlies || 2;
+    const plyWidth = inputs.plyWidth || 1.5; // 1.5 for sawn lumber, 1.75 for LVL
+    const depth = inputs.depth || 9.25;
+
+    const totalWidth = numPlies * plyWidth;
+    const Area = totalWidth * depth;
+    const Sx = (totalWidth * Math.pow(depth, 2)) / 6;
+    const Ix = (totalWidth * Math.pow(depth, 3)) / 12;
+    const weight = (Area / 144) * 35; // approx 35 lbs/cu.ft
+
+    member = {
+      name: `${numPlies}-Ply (${numPlies}x${plyWidth}" x ${depth}")`,
+      b: totalWidth,
+      d: depth,
+      Area,
+      Sx,
+      Ix,
+      weight,
+      numPlies,
+      plyWidth
+    };
+  } else {
+    member = getMemberByName(inputs.sizeName);
+  }
 
   const totalTrib_ft = (inputs.tribLeft_ft || 0) + (inputs.tribRight_ft || 0);
-  const selfWeight_plf = inputs.includeSelfWeight ? (member.weight || 0) : 0;
+  const selfWeight_plf = inputs.includeSelfWeight !== false ? (member.weight || 0) : 0;
   
   const w_dl_plf = inputs.loadMode === 'direct' 
     ? (inputs.w_dl_plf || 0) + selfWeight_plf
@@ -243,9 +246,8 @@ export function analyzeTimberBeam(inputs) {
   const M_max_kipft = M_max_lbft / 1000;
   const V_max_kips = V_max_lbs / 1000;
 
-  // NDS Stress Adjustments (Duration factor CD, Repetitive factor Cr)
-  const CD = inputs.CD || 1.15; // Floor/roof normal duration
-  const Cr = inputs.Cr || 1.15; // Repetitive member factor
+  const CD = inputs.CD || 1.15;
+  const Cr = inputs.Cr || 1.15;
   const Fb_prime_psi = species.Fb * CD * Cr;
 
   const fb_psi = M_max_lbin / member.Sx;
@@ -302,14 +304,36 @@ export function analyzeTimberBeam(inputs) {
 }
 
 export function findLightestTimberBeam(inputs) {
-  const family = inputs.family || 'sawn';
-  const candidates = TIMBER_MEMBERS.filter(m => m.category === family).sort((a, b) => a.weight - b.weight);
+  const family = inputs.family || 'builtup';
 
-  for (let mem of candidates) {
-    const testInputs = { ...inputs, sizeName: mem.name };
-    const res = analyzeTimberBeam(testInputs);
-    if (res.isPass) {
-      return { found: true, member: mem, result: res };
+  if (family === 'builtup') {
+    const plies = [1, 2, 3, 4, 5, 6];
+    const depths = [5.5, 7.25, 9.25, 9.5, 11.25, 11.875, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0];
+    const plyWidth = inputs.plyWidth || 1.5;
+
+    for (let d of depths) {
+      for (let p of plies) {
+        const testInputs = { ...inputs, isBuiltUp: true, numPlies: p, plyWidth, depth: d };
+        const res = analyzeTimberBeam(testInputs);
+        if (res.isPass) {
+          return {
+            found: true,
+            member: { name: `${p}-Ply (${p}x${plyWidth}" x ${d}")`, weight: (p * plyWidth * d / 144) * 35 },
+            result: res,
+            builtUpParams: { numPlies: p, plyWidth, depth: d }
+          };
+        }
+      }
+    }
+  } else {
+    const candidates = TIMBER_MEMBERS.filter(m => m.category === family).sort((a, b) => a.weight - b.weight);
+
+    for (let mem of candidates) {
+      const testInputs = { ...inputs, sizeName: mem.name };
+      const res = analyzeTimberBeam(testInputs);
+      if (res.isPass) {
+        return { found: true, member: mem, result: res };
+      }
     }
   }
 
