@@ -1,15 +1,18 @@
 /**
- * Reinforced Concrete Spread Footing Engine (ACI 318-19 Standards)
- * Includes Custom Rebar Reinforcement Selection (#3 through #10 @ 4" to 18" spacing)
- * & Auto-Required Rebar Calculation.
+ * Reinforced Concrete Pad Footing Engine (ACI 318-19 Standards)
+ * Supports Rectangular/Square Pad Footings with independent Side 1 (B) x Side 2 (L) x Thickness (t)
+ * and Column Pedestal Dimensions (B_col x L_col).
+ * Includes Custom Rebar Selection (#3 through #10 @ 4" to 18" spacing).
  */
 
 export function analyzeConcreteFooting(inputs) {
   const P_dead = inputs.P_dead_kips || 40;
   const P_live = inputs.P_live_kips || 25;
-  const B_ft = inputs.width_ft || 5;
-  const L_ft = inputs.length_ft || B_ft;
-  const t_in = inputs.thickness_in || 14;
+  const B_ft = inputs.width_ft || 5;    // Side 1 (Width)
+  const L_ft = inputs.length_ft || 5;   // Side 2 (Length)
+  const t_in = inputs.thickness_in || 14; // Pad Thickness
+  const col_w_in = inputs.col_width_in || 12; // Column Pedestal Width
+  const col_l_in = inputs.col_length_in || 12; // Column Pedestal Length
   const q_allow = inputs.q_allowable_ksf || 3.0;
   const fc = inputs.fc_psi || 3000;
   const fy = 60000; // Grade 60 Rebar
@@ -26,12 +29,16 @@ export function analyzeConcreteFooting(inputs) {
   const q_u_ksf = P_factored / Area_ft2;
   const q_u_psi = (q_u_ksf * 1000) / 144;
 
-  // 3. Cantilever Bending Moment & Required Steel Area As
-  const col_width_in = 12; // 12x12 Column
-  const cantilever_in = ((B_ft * 12) - col_width_in) / 2;
-  const cantilever_ft = cantilever_in / 12;
+  // 3. Cantilever Bending Moments for Side 1 and Side 2
+  const cantilever_b_in = ((B_ft * 12) - col_w_in) / 2;
+  const cantilever_b_ft = cantilever_b_in / 12;
 
-  const M_u_lbft = (q_u_ksf * 1000 * Math.pow(cantilever_ft, 2)) / 2; // per ft width
+  const cantilever_l_in = ((L_ft * 12) - col_l_in) / 2;
+  const cantilever_l_ft = cantilever_l_in / 12;
+
+  const max_cantilever_ft = Math.max(cantilever_b_ft, cantilever_l_ft);
+
+  const M_u_lbft = (q_u_ksf * 1000 * Math.pow(max_cantilever_ft, 2)) / 2; // per ft width
   const M_u_kipin = (M_u_lbft * 12) / 1000;
   const M_u_kipft = M_u_lbft / 1000;
 
@@ -42,7 +49,6 @@ export function analyzeConcreteFooting(inputs) {
   const As_req_sqin_per_ft = M_u_kipin / (phi_b * (fy / 1000) * 0.9 * d_in);
   const As_min_per_ft = 0.0018 * 12 * t_in;
   const As_final_req_per_ft = Math.max(As_req_sqin_per_ft, As_min_per_ft);
-  const As_total_req = As_final_req_per_ft * B_ft;
 
   // Rebar Data Lookup
   const rebarAreas = {
@@ -62,13 +68,11 @@ export function analyzeConcreteFooting(inputs) {
 
   let barArea = rebarAreas[barSize] || 0.31;
   let As_provided_per_ft = (12 / barSpacing) * barArea;
-  let As_total_provided = As_provided_per_ft * B_ft;
 
   let rebarSchedule = "";
   if (isCustomRebar) {
-    rebarSchedule = `#${barSize} @ ${barSpacing}" o.c. (Provided: ${As_provided_per_ft.toFixed(2)} in²/ft | Required: ${As_final_req_per_ft.toFixed(2)} in²/ft)`;
+    rebarSchedule = `#${barSize} @ ${barSpacing}" o.c. each way (Provided: ${As_provided_per_ft.toFixed(2)} in²/ft | Required: ${As_final_req_per_ft.toFixed(2)} in²/ft)`;
   } else {
-    // Auto recommendation
     if (As_final_req_per_ft <= 0.31) {
       rebarSchedule = `#4 @ 8" o.c. bottom mat each way`;
       barSize = 4; barSpacing = 8;
@@ -81,7 +85,6 @@ export function analyzeConcreteFooting(inputs) {
     }
     barArea = rebarAreas[barSize];
     As_provided_per_ft = (12 / barSpacing) * barArea;
-    As_total_provided = As_provided_per_ft * B_ft;
   }
 
   // Flexural Capacity Check phi*Mn
@@ -92,18 +95,25 @@ export function analyzeConcreteFooting(inputs) {
   const passSteel = As_provided_per_ft >= As_final_req_per_ft && phi_Mn_kipft_per_ft >= (M_u_kipft);
 
   // 4. One-Way & Two-Way Punching Shear Checks
-  const V_u_1way_lbs = (q_u_psi * 144) * (cantilever_ft - (d_in / 12));
+  const V_u_1way_lbs = (q_u_psi * 144) * (max_cantilever_ft - (d_in / 12));
   const phi_Vc_1way_lbs = 0.75 * 2 * Math.sqrt(fc) * 12 * d_in;
   const passOneWayShear = V_u_1way_lbs <= phi_Vc_1way_lbs;
 
-  const bo_in = 4 * (col_width_in + d_in);
-  const V_u_2way_lbs = (q_u_psi * 144) * (Area_ft2 - Math.pow((col_width_in + d_in) / 12, 2));
+  // Punching shear perimeter around column pedestal
+  const bo_in = 2 * (col_w_in + d_in) + 2 * (col_l_in + d_in);
+  const col_area_critical_ft2 = ((col_w_in + d_in) / 12) * ((col_l_in + d_in) / 12);
+  const V_u_2way_lbs = (q_u_psi * 144) * (Area_ft2 - col_area_critical_ft2);
   const phi_Vc_2way_lbs = 0.75 * 4 * Math.sqrt(fc) * bo_in * d_in;
   const passTwoWayShear = V_u_2way_lbs <= phi_Vc_2way_lbs;
 
   const isPass = passBearing && passSteel && passOneWayShear && passTwoWayShear;
 
   return {
+    B_ft,
+    L_ft,
+    t_in,
+    col_w_in,
+    col_l_in,
     P_service,
     P_factored,
     q_service_ksf,
@@ -113,7 +123,6 @@ export function analyzeConcreteFooting(inputs) {
     M_u_kipft,
     As_required_sqin_per_ft: As_final_req_per_ft,
     As_provided_sqin_per_ft: As_provided_per_ft,
-    As_final_sqin: As_total_provided,
     phi_Mn_kipft_per_ft,
     rebarRecommendation: rebarSchedule,
     passSteel,

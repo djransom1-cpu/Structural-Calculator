@@ -1,10 +1,10 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - Concrete Column Pad Footing (Side 1 x Side 2 x Pad Thickness & Column Pedestal)
  * - Custom Rebar Reinforcement Selection (#3-#10 @ 4"-18" spacing)
  * - Custom File Directory Save As... (window.showSaveFilePicker) & Export/Import (.json)
  * - Asymmetric Side A & Side B Load Inputs (DL_A, LL_A, Trib_A vs DL_B, LL_B, Trib_B)
- * - Asymmetric Support Reactions (R1, R2, R3) for Point Loads and Unbalanced Spans
  * - Multi-Member Project Management (Multiple Named Beams & Columns in 1 Project)
  * - Beam-to-Column Reaction Load Transfer Link
  */
@@ -154,7 +154,6 @@ class StructuralApp {
     const jsonString = JSON.stringify(proj, null, 2);
     const safeName = proj.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-    // Check if Native System File Picker API is available
     if ('showSaveFilePicker' in window) {
       try {
         const handle = await window.showSaveFilePicker({
@@ -170,11 +169,10 @@ class StructuralApp {
         alert(`💾 Project successfully saved to your selected directory!`);
         return;
       } catch (err) {
-        if (err.name === 'AbortError') return; // User cancelled prompt
+        if (err.name === 'AbortError') return;
       }
     }
 
-    // Fallback for browsers without Native File System Access API
     this.exportProjectFile();
   }
 
@@ -490,6 +488,11 @@ class StructuralApp {
 
     if (data.sc_axial) document.getElementById('sc-axial').value = data.sc_axial;
 
+    if (data.cf_width) document.getElementById('cf-width').value = data.cf_width;
+    if (data.cf_length) document.getElementById('cf-length').value = data.cf_length;
+    if (data.cf_thick) document.getElementById('cf-thick').value = data.cf_thick;
+    if (data.cf_col_w) document.getElementById('cf-col-w').value = data.cf_col_w;
+    if (data.cf_col_l) document.getElementById('cf-col-l').value = data.cf_col_l;
     if (data.cf_rebar_mode) document.getElementById('cf-rebar-mode').value = data.cf_rebar_mode;
     if (data.cf_bar_size) document.getElementById('cf-bar-size').value = data.cf_bar_size;
     if (data.cf_bar_spacing) document.getElementById('cf-bar-spacing').value = data.cf_bar_spacing;
@@ -531,7 +534,10 @@ class StructuralApp {
       cf_pdead: document.getElementById('cf-pdead').value,
       cf_plive: document.getElementById('cf-plive').value,
       cf_width: document.getElementById('cf-width').value,
+      cf_length: document.getElementById('cf-length').value,
       cf_thick: document.getElementById('cf-thick').value,
+      cf_col_w: document.getElementById('cf-col-w').value,
+      cf_col_l: document.getElementById('cf-col-l').value,
       cf_qallow: document.getElementById('cf-qallow').value,
       cf_fc: document.getElementById('cf-fc').value,
       cf_rebar_mode: document.getElementById('cf-rebar-mode').value,
@@ -885,7 +891,7 @@ class StructuralApp {
       'sb-trib-left', 'sb-trib-right', 'sb-dl-left', 'sb-dl-right', 'sb-ll-left', 'sb-ll-right',
       'sb-dl', 'sb-ll', 'sb-selfweight', 'sb-deflect-live', 'sb-deflect-total',
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
-      'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
+      'cf-pdead', 'cf-plive', 'cf-width', 'cf-length', 'cf-thick', 'cf-col-w', 'cf-col-l', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
       'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
       'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
@@ -1157,9 +1163,11 @@ class StructuralApp {
     const inputs = {
       P_dead_kips: parseFloat(document.getElementById('cf-pdead').value) || 40,
       P_live_kips: parseFloat(document.getElementById('cf-plive').value) || 25,
-      width_ft: parseFloat(document.getElementById('cf-width').value) || 5,
-      length_ft: parseFloat(document.getElementById('cf-width').value) || 5,
-      thickness_in: parseFloat(document.getElementById('cf-thick').value) || 14,
+      width_ft: parseFloat(document.getElementById('cf-width').value) || 5,   // Side 1
+      length_ft: parseFloat(document.getElementById('cf-length').value) || 5,  // Side 2
+      thickness_in: parseFloat(document.getElementById('cf-thick').value) || 14, // Thickness t
+      col_width_in: parseFloat(document.getElementById('cf-col-w').value) || 12,
+      col_length_in: parseFloat(document.getElementById('cf-col-l').value) || 12,
       q_allowable_ksf: parseFloat(document.getElementById('cf-qallow').value) || 3.0,
       fc_psi: parseFloat(document.getElementById('cf-fc').value) || 3000,
       rebarMode: document.getElementById('cf-rebar-mode').value,
@@ -1172,7 +1180,8 @@ class StructuralApp {
     this.updateStatus(res.isPass, res.bearingRatio * 100);
 
     this.renderMetrics([
-      { label: "Service Pressure", val: `${res.q_service_ksf.toFixed(2)} ksf`, sub: `Allowable: ${res.q_allowable_ksf} ksf` },
+      { label: "Footing Pad Size", val: `${res.B_ft}' \u00D7 ${res.L_ft}' \u00D7 ${res.t_in}" pad`, sub: `Column: ${res.col_w_in}" \u00D7 ${res.col_l_in}" pedestal` },
+      { label: "Service Soil Pressure", val: `${res.q_service_ksf.toFixed(2)} ksf`, sub: `Allowable: ${res.q_allowable_ksf} ksf (${res.passBearing ? 'Pass' : 'FAIL'})` },
       { label: "Factored Moment Mu", val: `${res.M_u_kipft.toFixed(1)} kip-ft`, sub: `Factored Load Pu: ${res.P_factored} kips` },
       { label: "Flexural Steel As", val: `${res.As_provided_sqin_per_ft.toFixed(2)} in\u00B2/ft`, sub: `Required: ${res.As_required_sqin_per_ft.toFixed(2)} in\u00B2/ft` },
       { label: "Rebar Schedule", val: res.rebarRecommendation, sub: res.passSteel ? "Flexural Steel Pass" : "OVERSTRESSED - Increase Rebar Size" }

@@ -397,10 +397,10 @@
         </div>
       </div>
 
-      <!-- CONCRETE FOOTING MODULE WITH REBAR REINFORCEMENT SELECTION -->
+      <!-- CONCRETE FOOTING MODULE WITH PAD FOOTING DIMENSIONS & COLUMN PEDESTAL INPUTS -->
       <div id="mod-footing" class="module-content">
-        <h2 class="module-title">Concrete Spread Footing</h2>
-        <p class="module-desc">Soil bearing pressure, footing sizing, flexural steel ($A_s$), and punching shear.</p>
+        <h2 class="module-title">Concrete Column Footing Pad</h2>
+        <p class="module-desc">Supports Pad Footings with independent Side 1 & Side 2 dimensions, Pad Thickness, and Column Pedestal.</p>
         
         <div class="form-row">
           <div class="form-group">
@@ -413,14 +413,34 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="cf-width">Width (B) (ft)</label>
-            <input type="number" id="cf-width" class="form-control" value="5.0" step="0.5" min="1">
+        <!-- CONCRETE FOOTING PAD DIMENSIONS (SIDE 1, SIDE 2, THICKNESS) -->
+        <div style="background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border); display:flex; flex-direction:column; gap:0.75rem;">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">📐 Footing Pad Dimensions (Side 1 x Side 2 x Thickness)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cf-width">Side 1 / Width B (ft)</label>
+              <input type="number" id="cf-width" class="form-control" value="5.0" step="0.5" min="1">
+            </div>
+            <div class="form-group">
+              <label for="cf-length">Side 2 / Length L (ft)</label>
+              <input type="number" id="cf-length" class="form-control" value="5.0" step="0.5" min="1">
+            </div>
           </div>
           <div class="form-group">
-            <label for="cf-thick">Thickness (t) (in)</label>
+            <label for="cf-thick">Footing Pad Thickness t (in)</label>
             <input type="number" id="cf-thick" class="form-control" value="14" step="1" min="6">
+          </div>
+        </div>
+
+        <!-- COLUMN / PEDESTAL DIMENSIONS -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cf-col-w">Column / Pedestal Width (in)</label>
+            <input type="number" id="cf-col-w" class="form-control" value="12" step="1" min="4">
+          </div>
+          <div class="form-group">
+            <label for="cf-col-l">Column / Pedestal Length (in)</label>
+            <input type="number" id="cf-col-l" class="form-control" value="12" step="1" min="4">
           </div>
         </div>
 
