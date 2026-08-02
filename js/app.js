@@ -35,46 +35,9 @@ class StructuralApp {
   }
 
   populateSelects() {
-    const sbSelect = document.getElementById('sb-shape');
-    const scSelect = document.getElementById('sc-shape');
-    sbSelect.innerHTML = '';
-    scSelect.innerHTML = '';
-
-    // Categorized Groups for 200+ Steel Shapes
-    const categories = {
-      'W': 'Wide Flange Beams (W-Shapes)',
-      'M': 'Miscellaneous Beams (M-Shapes)',
-      'C': 'Standard Channels (C-Shapes)',
-      'MC': 'Miscellaneous Channels (MC-Shapes)',
-      'WT': 'Structural Tees (WT-Shapes)',
-      'HSS': 'HSS Tubing (Square & Rectangular)',
-      'Pipe': 'HSS Round Steel Pipe',
-      'L': 'Angle Shapes (L-Angles)'
-    };
-
-    Object.keys(categories).forEach(typeKey => {
-      const group1 = document.createElement('optgroup');
-      group1.label = categories[typeKey];
-      const group2 = document.createElement('optgroup');
-      group2.label = categories[typeKey];
-
-      const shapes = AISC_DATABASE.filter(s => s.type === typeKey);
-      shapes.forEach(sec => {
-        const opt = document.createElement('option');
-        opt.value = sec.name;
-        opt.textContent = `${sec.name} (${sec.weight} lb/ft | Ix: ${sec.Ix} in⁴)`;
-        group1.appendChild(opt);
-        group2.appendChild(opt.cloneNode(true));
-      });
-
-      if (shapes.length > 0) {
-        sbSelect.appendChild(group1);
-        scSelect.appendChild(group2);
-      }
-    });
-
-    sbSelect.value = "W12x26";
-    scSelect.value = "HSS6x6x3/8";
+    // Populate Beam Shapes based on selected Family
+    this.updateBeamShapes();
+    this.updateColumnShapes();
 
     // Categorized Groups for Timber & Engineered Wood
     const tbSpeciesSelect = document.getElementById('tb-species');
@@ -110,6 +73,48 @@ class StructuralApp {
         tbSizeSelect.appendChild(grp);
       }
     });
+  }
+
+  updateBeamShapes() {
+    const familySelect = document.getElementById('sb-family');
+    const shapeSelect = document.getElementById('sb-shape');
+    if (!familySelect || !shapeSelect) return;
+
+    const family = familySelect.value || 'W';
+    shapeSelect.innerHTML = '';
+
+    const matchingShapes = AISC_DATABASE.filter(s => s.type === family);
+    matchingShapes.forEach(sec => {
+      const opt = document.createElement('option');
+      opt.value = sec.name;
+      opt.textContent = `${sec.name} (${sec.weight} lb/ft | Ix: ${sec.Ix} in⁴ | Sx: ${sec.Sx} in³)`;
+      shapeSelect.appendChild(opt);
+    });
+
+    if (matchingShapes.length > 0) {
+      shapeSelect.value = matchingShapes[0].name;
+    }
+  }
+
+  updateColumnShapes() {
+    const familySelect = document.getElementById('sc-family');
+    const shapeSelect = document.getElementById('sc-shape');
+    if (!familySelect || !shapeSelect) return;
+
+    const family = familySelect.value || 'HSS';
+    shapeSelect.innerHTML = '';
+
+    const matchingShapes = AISC_DATABASE.filter(s => s.type === family);
+    matchingShapes.forEach(sec => {
+      const opt = document.createElement('option');
+      opt.value = sec.name;
+      opt.textContent = `${sec.name} (${sec.weight} lb/ft | Area: ${sec.A} in² | r: ${sec.rx} in)`;
+      shapeSelect.appendChild(opt);
+    });
+
+    if (matchingShapes.length > 0) {
+      shapeSelect.value = matchingShapes[0].name;
+    }
   }
 
   renderPointLoadsUI() {
@@ -175,6 +180,7 @@ class StructuralApp {
   }
 
   setupEventListeners() {
+    // Navigation Tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const targetModule = e.currentTarget.dataset.module;
@@ -182,6 +188,24 @@ class StructuralApp {
       });
     });
 
+    // Cascading Steel Family Listeners
+    const sbFamilySelect = document.getElementById('sb-family');
+    if (sbFamilySelect) {
+      sbFamilySelect.addEventListener('change', () => {
+        this.updateBeamShapes();
+        this.recalculate();
+      });
+    }
+
+    const scFamilySelect = document.getElementById('sc-family');
+    if (scFamilySelect) {
+      scFamilySelect.addEventListener('change', () => {
+        this.updateColumnShapes();
+        this.recalculate();
+      });
+    }
+
+    // Preset Listener
     const presetSelect = document.getElementById('sb-preset');
     if (presetSelect) {
       presetSelect.addEventListener('change', () => {
@@ -211,6 +235,7 @@ class StructuralApp {
       });
     }
 
+    // Beam Type Listener
     const beamTypeSelect = document.getElementById('sb-beam-type');
     if (beamTypeSelect) {
       beamTypeSelect.addEventListener('change', () => {
@@ -231,6 +256,7 @@ class StructuralApp {
       });
     }
 
+    // Add Point Load Button Listener
     const addPtBtn = document.getElementById('addPointLoadBtn');
     if (addPtBtn) {
       addPtBtn.addEventListener('click', () => {
@@ -241,6 +267,7 @@ class StructuralApp {
       });
     }
 
+    // Steel Load Mode Toggle Listener
     const loadModeSelect = document.getElementById('sb-load-mode');
     if (loadModeSelect) {
       loadModeSelect.addEventListener('change', () => {
@@ -252,6 +279,7 @@ class StructuralApp {
       });
     }
 
+    // General Input Change Listeners
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
       'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',

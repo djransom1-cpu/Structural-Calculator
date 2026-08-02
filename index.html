@@ -93,7 +93,31 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="sb-shape">AISC Section Shape</label>
+            <label for="sb-method">Design Method</label>
+            <select id="sb-method" class="form-control">
+              <option value="ASD">AISC ASD (Allowable Stress)</option>
+              <option value="LRFD">AISC LRFD (Load & Resistance)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 2-Step Cascading Steel Selection -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sb-family">1. Select Steel Family</label>
+            <select id="sb-family" class="form-control">
+              <option value="W">Wide Flange Beams (W-Shapes)</option>
+              <option value="M">Miscellaneous Light Beams (M-Shapes)</option>
+              <option value="C">Standard Channels (C-Shapes)</option>
+              <option value="MC">Miscellaneous Channels (MC-Shapes)</option>
+              <option value="WT">Structural Tees (WT-Shapes)</option>
+              <option value="HSS">HSS Square & Rectangular Tubing</option>
+              <option value="Pipe">HSS Round Steel Pipe</option>
+              <option value="L">Angle Shapes (L-Angles)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sb-shape">2. Select AISC Section</label>
             <select id="sb-shape" class="form-control"></select>
           </div>
         </div>
@@ -108,10 +132,11 @@
             <input type="number" id="sb-span2" class="form-control" value="5" step="0.5" min="0">
           </div>
           <div class="form-group">
-            <label for="sb-method">Design Method</label>
-            <select id="sb-method" class="form-control">
-              <option value="ASD">AISC ASD (Allowable Stress)</option>
-              <option value="LRFD">AISC LRFD (Load & Resistance)</option>
+            <label for="sb-fy">Steel Grade ($F_y$)</label>
+            <select id="sb-fy" class="form-control">
+              <option value="50">A992 (50 ksi)</option>
+              <option value="36">A36 (36 ksi)</option>
+              <option value="46">HSS A500 Gr B (46 ksi)</option>
             </select>
           </div>
         </div>
@@ -155,9 +180,7 @@
             <label style="margin:0;">Concentrated Point Loads</label>
             <button id="addPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
           </div>
-          <div id="pointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;">
-            <!-- Point load rows inserted dynamically by app.js -->
-          </div>
+          <div id="pointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
         </div>
 
         <div class="form-group" style="display:flex; align-items:center;">
@@ -192,9 +215,19 @@
         <h2 class="module-title">Steel Column Buckling</h2>
         <p class="module-desc">Euler critical buckling load & AISC slenderness check ($KL/r$).</p>
         
-        <div class="form-group">
-          <label for="sc-shape">Column Shape (HSS / Wide Flange)</label>
-          <select id="sc-shape" class="form-control"></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="sc-family">1. Column Family</label>
+            <select id="sc-family" class="form-control">
+              <option value="HSS">HSS Square & Rectangular Tubing</option>
+              <option value="W">Wide Flange Columns (W-Shapes)</option>
+              <option value="Pipe">Round Steel Pipe</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sc-shape">2. Column Shape</label>
+            <select id="sc-shape" class="form-control"></select>
+          </div>
         </div>
 
         <div class="form-row">
