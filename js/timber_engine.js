@@ -1,6 +1,7 @@
 /**
  * Timber & Engineered Wood Calculation Engine (NDS 2018 Standards)
  * Includes Dynamic Built-Up Member Generator (# of Plies, Ply Width, Member Depth)
+ * & Asymmetric Side A / Side B Load Inputs.
  */
 
 export const TIMBER_SPECIES = [
@@ -123,7 +124,7 @@ export function getMemberByName(name) {
 }
 
 /**
- * Perform complete Timber Beam Analysis with Built-Up Member Generator (# Plies x Ply Width x Depth)
+ * Perform complete Timber Beam Analysis with Asymmetric Side A / Side B Load Inputs
  */
 export function analyzeTimberBeam(inputs) {
   const beamType = inputs.beamType || 'single';
@@ -136,14 +137,14 @@ export function analyzeTimberBeam(inputs) {
 
   if (inputs.isBuiltUp) {
     const numPlies = inputs.numPlies || 2;
-    const plyWidth = inputs.plyWidth || 1.5; // 1.5 for sawn lumber, 1.75 for LVL
+    const plyWidth = inputs.plyWidth || 1.5;
     const depth = inputs.depth || 9.25;
 
     const totalWidth = numPlies * plyWidth;
     const Area = totalWidth * depth;
     const Sx = (totalWidth * Math.pow(depth, 2)) / 6;
     const Ix = (totalWidth * Math.pow(depth, 3)) / 12;
-    const weight = (Area / 144) * 35; // approx 35 lbs/cu.ft
+    const weight = (Area / 144) * 35;
 
     member = {
       name: `${numPlies}-Ply (${numPlies}x${plyWidth}" x ${depth}")`,
@@ -160,16 +161,26 @@ export function analyzeTimberBeam(inputs) {
     member = getMemberByName(inputs.sizeName);
   }
 
-  const totalTrib_ft = (inputs.tribLeft_ft || 0) + (inputs.tribRight_ft || 0);
   const selfWeight_plf = inputs.includeSelfWeight !== false ? (member.weight || 0) : 0;
   
-  const w_dl_plf = inputs.loadMode === 'direct' 
-    ? (inputs.w_dl_plf || 0) + selfWeight_plf
-    : ((inputs.dl_psf || 0) * totalTrib_ft) + selfWeight_plf;
+  let w_dl_plf = 0;
+  let w_ll_plf = 0;
 
-  const w_ll_plf = inputs.loadMode === 'direct'
-    ? (inputs.w_ll_plf || 0)
-    : ((inputs.ll_psf || 0) * totalTrib_ft);
+  if (inputs.loadMode === 'direct') {
+    w_dl_plf = (inputs.w_dl_plf || 0) + selfWeight_plf;
+    w_ll_plf = (inputs.w_ll_plf || 0);
+  } else {
+    // Asymmetric Side A (Left) & Side B (Right) Tributary Loads
+    const tribLeft_ft = inputs.tribLeft_ft || 0;
+    const tribRight_ft = inputs.tribRight_ft || 0;
+    const dlLeft_psf = inputs.dlLeft_psf !== undefined ? inputs.dlLeft_psf : (inputs.dl_psf || 0);
+    const dlRight_psf = inputs.dlRight_psf !== undefined ? inputs.dlRight_psf : (inputs.dl_psf || 0);
+    const llLeft_psf = inputs.llLeft_psf !== undefined ? inputs.llLeft_psf : (inputs.ll_psf || 0);
+    const llRight_psf = inputs.llRight_psf !== undefined ? inputs.llRight_psf : (inputs.ll_psf || 0);
+
+    w_dl_plf = (dlLeft_psf * tribLeft_ft) + (dlRight_psf * tribRight_ft) + selfWeight_plf;
+    w_ll_plf = (llLeft_psf * tribLeft_ft) + (llRight_psf * tribRight_ft);
+  }
 
   const w_service_plf = w_dl_plf + w_ll_plf;
   const w_service_kft = w_service_plf / 1000;

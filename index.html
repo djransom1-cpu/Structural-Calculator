@@ -185,7 +185,7 @@
           <h2 class="module-title" style="margin:0;">Steel Beam Analysis</h2>
           <button id="optiSteelBeamBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Shape</button>
         </div>
-        <p class="module-desc">Supports Floor/Roof Presets, Cantilevers, 2-Span Continuous Beams & Multiple Point Loads.</p>
+        <p class="module-desc">Supports Asymmetric Side A / Side B Loads, Cantilevers, 2-Span Beams & Point Loads.</p>
         
         <!-- Preset Selector -->
         <div class="form-group">
@@ -261,39 +261,64 @@
         <div class="form-group">
           <label for="sb-load-mode">Uniform Load Mode</label>
           <select id="sb-load-mode" class="form-control">
-            <option value="tributary">Area Load (PSF) + Tributary Widths (ft)</option>
+            <option value="tributary">Area Load (PSF) + Asymmetric Side A / Side B Widths</option>
             <option value="direct">Direct Line Load (plf or k/ft)</option>
           </select>
         </div>
 
-        <!-- Tributary Width Inputs -->
-        <div id="group-trib" class="form-row">
-          <div class="form-group">
-            <label for="sb-trib-left">Left Tributary Width (ft)</label>
-            <input type="number" id="sb-trib-left" class="form-control" value="6.0" step="0.5" min="0">
+        <!-- ASYMMETRIC TRIBUTARY LOADS (SIDE A vs SIDE B) FOR STEEL -->
+        <div id="group-trib" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Asymmetric Side A & Side B Load Inputs</div>
+          
+          <!-- SIDE A (LEFT TRIBUTARY) -->
+          <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+            <div class="form-group">
+              <label for="sb-trib-left">Side A (Left Trib Width) (ft)</label>
+              <input type="number" id="sb-trib-left" class="form-control" value="6.0" step="0.5" min="0">
+            </div>
+            <div class="form-group">
+              <label for="sb-dl-left">Side A Dead Load (DL_A) (psf)</label>
+              <input type="number" id="sb-dl-left" class="form-control" value="15" step="5" min="0">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label for="sb-ll-left">Side A Live Load (LL_A) (psf)</label>
+              <input type="number" id="sb-ll-left" class="form-control" value="40" step="5" min="0">
+            </div>
           </div>
-          <div class="form-group">
-            <label for="sb-trib-right">Right Tributary Width (ft)</label>
-            <input type="number" id="sb-trib-right" class="form-control" value="6.0" step="0.5" min="0">
+
+          <!-- SIDE B (RIGHT TRIBUTARY) -->
+          <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+            <div class="form-group">
+              <label for="sb-trib-right">Side B (Right Trib Width) (ft)</label>
+              <input type="number" id="sb-trib-right" class="form-control" value="6.0" step="0.5" min="0">
+            </div>
+            <div class="form-group">
+              <label for="sb-dl-right">Side B Dead Load (DL_B) (psf)</label>
+              <input type="number" id="sb-dl-right" class="form-control" value="15" step="5" min="0">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label for="sb-ll-right">Side B Live Load (LL_B) (psf)</label>
+              <input type="number" id="sb-ll-right" class="form-control" value="40" step="5" min="0">
+            </div>
           </div>
         </div>
 
-        <!-- Dead Load & Live Load Inputs -->
-        <div class="form-row">
+        <!-- DIRECT LINE LOAD INPUTS (FOR DIRECT MODE) -->
+        <div id="group-direct-loads" class="form-row" style="display:none;">
           <div class="form-group">
-            <label for="sb-dl" id="label-dl">Dead Load (DL) (psf)</label>
-            <input type="number" id="sb-dl" class="form-control" value="15" step="5" min="0">
+            <label for="sb-dl" id="label-dl">Dead Load (DL) (plf)</label>
+            <input type="number" id="sb-dl" class="form-control" value="180" step="10" min="0">
           </div>
           <div class="form-group">
-            <label for="sb-ll" id="label-ll">Live Load (LL) (psf)</label>
-            <input type="number" id="sb-ll" class="form-control" value="40" step="5" min="0">
+            <label for="sb-ll" id="label-ll">Live Load (LL) (plf)</label>
+            <input type="number" id="sb-ll" class="form-control" value="480" step="10" min="0">
           </div>
         </div>
 
         <!-- Dynamic Point Loads Container -->
         <div class="form-group">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-            <label style="margin:0;">Concentrated Point Loads</label>
+            <label style="margin:0;">Concentrated Point Loads (Asymmetric Reactions)</label>
             <button id="addPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
           </div>
           <div id="pointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
@@ -447,13 +472,13 @@
         </div>
       </div>
 
-      <!-- TIMBER MODULE WITH DYNAMIC BUILT-UP BUILDER -->
+      <!-- TIMBER MODULE WITH ASYMMETRIC SIDE A / SIDE B LOADS -->
       <div id="mod-timber" class="module-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
           <h2 class="module-title" style="margin:0;">Timber & Engineered Wood Analysis</h2>
           <button id="optiTimberBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Wood</button>
         </div>
-        <p class="module-desc">Supports Built-Up Headers (# Plies x Width x Depth), Presets, Cantilevers & NDS ASD/LRFD.</p>
+        <p class="module-desc">Supports Asymmetric Side A / Side B Loads, Built-Up Headers, Cantilevers & NDS ASD/LRFD.</p>
         
         <!-- Preset Selector -->
         <div class="form-group">
@@ -562,39 +587,64 @@
         <div class="form-group">
           <label for="tb-load-mode">Uniform Load Mode</label>
           <select id="tb-load-mode" class="form-control">
-            <option value="tributary">Area Load (PSF) + Tributary Spacing (ft / in)</option>
+            <option value="tributary">Area Load (PSF) + Asymmetric Side A / Side B Widths</option>
             <option value="direct">Direct Line Load (plf)</option>
           </select>
         </div>
 
-        <!-- Tributary Spacing Inputs -->
-        <div id="tb-group-trib" class="form-row">
-          <div class="form-group">
-            <label for="tb-trib-left">Left Tributary / Spacing (ft)</label>
-            <input type="number" id="tb-trib-left" class="form-control" value="1.33" step="0.16" min="0">
+        <!-- ASYMMETRIC TRIBUTARY LOADS (SIDE A vs SIDE B) FOR WOOD -->
+        <div id="tb-group-trib" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
+          <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Asymmetric Side A & Side B Load Inputs</div>
+          
+          <!-- SIDE A (LEFT TRIBUTARY) -->
+          <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+            <div class="form-group">
+              <label for="tb-trib-left">Side A (Left Spacing / Trib) (ft)</label>
+              <input type="number" id="tb-trib-left" class="form-control" value="1.33" step="0.16" min="0">
+            </div>
+            <div class="form-group">
+              <label for="tb-dl-left">Side A Dead Load (DL_A) (psf)</label>
+              <input type="number" id="tb-dl-left" class="form-control" value="10" step="5" min="0">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label for="tb-ll-left">Side A Live Load (LL_A) (psf)</label>
+              <input type="number" id="tb-ll-left" class="form-control" value="40" step="5" min="0">
+            </div>
           </div>
-          <div class="form-group">
-            <label for="tb-trib-right">Right Tributary / Spacing (ft)</label>
-            <input type="number" id="tb-trib-right" class="form-control" value="1.33" step="0.16" min="0">
+
+          <!-- SIDE B (RIGHT TRIBUTARY) -->
+          <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+            <div class="form-group">
+              <label for="tb-trib-right">Side B (Right Spacing / Trib) (ft)</label>
+              <input type="number" id="tb-trib-right" class="form-control" value="1.33" step="0.16" min="0">
+            </div>
+            <div class="form-group">
+              <label for="tb-dl-right">Side B Dead Load (DL_B) (psf)</label>
+              <input type="number" id="tb-dl-right" class="form-control" value="10" step="5" min="0">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label for="tb-ll-right">Side B Live Load (LL_B) (psf)</label>
+              <input type="number" id="tb-ll-right" class="form-control" value="40" step="5" min="0">
+            </div>
           </div>
         </div>
 
-        <!-- Dead Load & Live Load Inputs -->
-        <div class="form-row">
+        <!-- DIRECT LINE LOAD INPUTS (FOR WOOD DIRECT MODE) -->
+        <div id="tb-group-direct-loads" class="form-row" style="display:none;">
           <div class="form-group">
-            <label for="tb-dl" id="tb-label-dl">Dead Load (DL) (psf)</label>
-            <input type="number" id="tb-dl" class="form-control" value="10" step="5" min="0">
+            <label for="tb-dl" id="tb-label-dl">Dead Load (DL) (plf)</label>
+            <input type="number" id="tb-dl" class="form-control" value="50" step="10" min="0">
           </div>
           <div class="form-group">
-            <label for="tb-ll" id="tb-label-ll">Live Load (LL) (psf)</label>
-            <input type="number" id="tb-ll" class="form-control" value="40" step="5" min="0">
+            <label for="tb-ll" id="tb-label-ll">Live Load (LL) (plf)</label>
+            <input type="number" id="tb-ll" class="form-control" value="120" step="10" min="0">
           </div>
         </div>
 
         <!-- Dynamic Point Loads Container for Wood -->
         <div class="form-group">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-            <label style="margin:0;">Concentrated Point Loads</label>
+            <label style="margin:0;">Concentrated Point Loads (Asymmetric Reactions)</label>
             <button id="tbAddPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
           </div>
           <div id="tbPointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
@@ -669,12 +719,12 @@
       <!-- BEAM TO COLUMN REACTION TRANSFER ACTION BAR -->
       <div id="transferReactionContainer" style="display:none; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:0.75rem 1rem; align-items:center; justify-content:space-between; gap:0.5rem;">
         <div>
-          <div style="font-weight:700; font-size:0.85rem; color:#10b981;">🏛️ Connect Beam Reactions to Column / Footing Design</div>
-          <div style="font-size:0.75rem; color:var(--text-muted);">Transfer left (R1), right (R2), or center (R3) bearing reaction directly into a Column!</div>
+          <div style="font-weight:700; font-size:0.85rem; color:#10b981;">🏛️ Asymmetric Bearing Reactions Link</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">Transfer Left (R1) or Right (R2) bearing reaction to Column!</div>
         </div>
         <div style="display:flex; gap:0.4rem;">
-          <button id="transferR1Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R1 → Column</button>
-          <button id="transferR2Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R2 → Column</button>
+          <button id="transferR1Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R1 → Left Col</button>
+          <button id="transferR2Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R2 → Right Col</button>
         </div>
       </div>
 

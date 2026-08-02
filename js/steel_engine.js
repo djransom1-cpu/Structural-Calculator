@@ -1,95 +1,93 @@
 /**
- * Steel Structural Calculation Engine - Advanced Beam & Column Analysis
- * Includes Reaction Calculations at each support bearing point (R1, R2, R3)
+ * Steel Design Calculation Engine (AISC 15th Edition ASD / LRFD)
+ * Calculates asymmetric Side A / Side B tributary loads, unbraced length (Lb),
+ * bending moments, shear forces, deflections, and support reaction forces (R1, R2, R3).
  */
-
-export const STEEL_CONSTANTS = {
-  E_PSI: 29000000,
-  E_KSI: 29000,
-  DEFAULT_FY_KSI: 50.0,
-};
 
 import { AISC_DATABASE } from './aisc_database.js';
 
-/**
- * Perform comprehensive analysis for steel beams
- */
 export function analyzeSteelBeam(inputs) {
+  const method = inputs.method || 'ASD';
   const beamType = inputs.beamType || 'single';
   const L1_ft = inputs.L_ft || 20;
   const L2_ft = inputs.L2_ft || 0;
   const L1_in = L1_ft * 12;
-  const section = inputs.section;
-  const Fy = inputs.Fy_ksi || STEEL_CONSTANTS.DEFAULT_FY_KSI;
-  const method = inputs.method || 'ASD';
+  const Fy = inputs.Fy || 50;
 
-  const totalTrib_ft = (inputs.tribLeft_ft || 0) + (inputs.tribRight_ft || 0);
-  const selfWeight_plf = inputs.includeSelfWeight ? (section.weight || 0) : 0;
+  const section = inputs.section || AISC_DATABASE[0];
+
+  const selfWeight_plf = inputs.includeSelfWeight !== false ? (section.weight || 0) : 0;
   
-  const w_dl_plf = inputs.loadMode === 'direct' 
-    ? (inputs.w_dl_plf || 0) + selfWeight_plf
-    : ((inputs.dl_psf || 0) * totalTrib_ft) + selfWeight_plf;
+  let w_dl_plf = 0;
+  let w_ll_plf = 0;
 
-  const w_ll_plf = inputs.loadMode === 'direct'
-    ? (inputs.w_ll_plf || 0)
-    : ((inputs.ll_psf || 0) * totalTrib_ft);
+  if (inputs.loadMode === 'direct') {
+    w_dl_plf = (inputs.w_dl_plf || 0) + selfWeight_plf;
+    w_ll_plf = (inputs.w_ll_plf || 0);
+  } else {
+    // Asymmetric Side A (Left) & Side B (Right) Tributary Loads
+    const tribLeft_ft = inputs.tribLeft_ft || 0;
+    const tribRight_ft = inputs.tribRight_ft || 0;
+    const dlLeft_psf = inputs.dlLeft_psf !== undefined ? inputs.dlLeft_psf : (inputs.dl_psf || 0);
+    const dlRight_psf = inputs.dlRight_psf !== undefined ? inputs.dlRight_psf : (inputs.dl_psf || 0);
+    const llLeft_psf = inputs.llLeft_psf !== undefined ? inputs.llLeft_psf : (inputs.ll_psf || 0);
+    const llRight_psf = inputs.llRight_psf !== undefined ? inputs.llRight_psf : (inputs.ll_psf || 0);
 
-  const w_dl_kft = w_dl_plf / 1000;
-  const w_ll_kft = w_ll_plf / 1000;
-  const w_service_kft = w_dl_kft + w_ll_kft;
+    w_dl_plf = (dlLeft_psf * tribLeft_ft) + (dlRight_psf * tribRight_ft) + selfWeight_plf;
+    w_ll_plf = (llLeft_psf * tribLeft_ft) + (llRight_psf * tribRight_ft);
+  }
 
-  const w_factored_kft = method === 'LRFD' 
-    ? (1.2 * w_dl_kft + 1.6 * w_ll_kft)
-    : w_service_kft;
+  const w_service_plf = w_dl_plf + w_ll_plf;
+  const w_service_kft = w_service_plf / 1000;
 
-  const pointLoads = inputs.pointLoads && inputs.pointLoads.length > 0
-    ? inputs.pointLoads
-    : [{ P_dl: inputs.P_dl_kips || 0, P_ll: inputs.P_ll_kips || 0, pos_ft: inputs.P_pos_ft || L1_ft / 2 }];
+  const w_factored_plf = (1.2 * w_dl_plf) + (1.6 * w_ll_plf);
+  const w_factored_kft = w_factored_plf / 1000;
+
+  const pointLoads = inputs.pointLoads && inputs.pointLoads.length > 0 
+    ? inputs.pointLoads 
+    : [{ P_dl: 0, P_ll: 0, pos_ft: L1_ft / 2 }];
 
   let R1_dl_kips = 0, R1_ll_kips = 0;
   let R2_dl_kips = 0, R2_ll_kips = 0;
   let R3_dl_kips = 0, R3_ll_kips = 0;
 
-  const E = STEEL_CONSTANTS.E_KSI;
-
-  let M_point_factored = 0;
-  let V_point_factored = 0;
+  let M_point_kipin = 0;
+  let V_point_kips = 0;
   let delta_point_live = 0;
   let delta_point_total = 0;
 
-  // Calculate Uniform Load Reactions
+  const E = 29000; // Steel Modulus of Elasticity (ksi)
+
+  // Asymmetric Reaction Math for Beam Supports
   if (beamType === 'single') {
-    R1_dl_kips += (w_dl_kft * L1_ft) / 2;
-    R2_dl_kips += (w_dl_kft * L1_ft) / 2;
-    R1_ll_kips += (w_ll_kft * L1_ft) / 2;
-    R2_ll_kips += (w_ll_kft * L1_ft) / 2;
-
+    R1_dl_kips += (w_dl_plf * L1_ft / 1000) / 2;
+    R2_dl_kips += (w_dl_plf * L1_ft / 1000) / 2;
+    R1_ll_kips += (w_ll_plf * L1_ft / 1000) / 2;
+    R2_ll_kips += (w_ll_plf * L1_ft / 1000) / 2;
   } else if (beamType === 'cantilever') {
-    const M_cant_dl = (w_dl_kft * Math.pow(L2_ft, 2)) / 2;
-    const M_cant_ll = (w_ll_kft * Math.pow(L2_ft, 2)) / 2;
+    const M_cant_dl = (w_dl_plf * Math.pow(L2_ft, 2) / 2) / 1000;
+    const M_cant_ll = (w_ll_plf * Math.pow(L2_ft, 2) / 2) / 1000;
 
-    R1_dl_kips += (w_dl_kft * L1_ft) / 2 - (M_cant_dl / L1_ft);
-    R2_dl_kips += (w_dl_kft * L1_ft) / 2 + (M_cant_dl / L1_ft) + (w_dl_kft * L2_ft);
+    R1_dl_kips += (w_dl_plf * L1_ft / 1000) / 2 - (M_cant_dl / L1_ft);
+    R2_dl_kips += (w_dl_plf * L1_ft / 1000) / 2 + (M_cant_dl / L1_ft) + (w_dl_plf * L2_ft / 1000);
 
-    R1_ll_kips += (w_ll_kft * L1_ft) / 2 - (M_cant_ll / L1_ft);
-    R2_ll_kips += (w_ll_kft * L1_ft) / 2 + (M_cant_ll / L1_ft) + (w_ll_kft * L2_ft);
-
+    R1_ll_kips += (w_ll_plf * L1_ft / 1000) / 2 - (M_cant_ll / L1_ft);
+    R2_ll_kips += (w_ll_plf * L1_ft / 1000) / 2 + (M_cant_ll / L1_ft) + (w_ll_plf * L2_ft / 1000);
   } else if (beamType === 'two-span') {
-    R1_dl_kips += 0.375 * w_dl_kft * L1_ft;
-    R2_dl_kips += 1.25 * w_dl_kft * L1_ft;
-    R3_dl_kips += 0.375 * w_dl_kft * (L2_ft || L1_ft);
+    R1_dl_kips += 0.375 * (w_dl_plf * L1_ft / 1000);
+    R2_dl_kips += 1.25 * (w_dl_plf * L1_ft / 1000);
+    R3_dl_kips += 0.375 * (w_dl_plf * (L2_ft || L1_ft) / 1000);
 
-    R1_ll_kips += 0.375 * w_ll_kft * L1_ft;
-    R2_ll_kips += 1.25 * w_ll_kft * L1_ft;
-    R3_ll_kips += 0.375 * w_ll_kft * (L2_ft || L1_ft);
+    R1_ll_kips += 0.375 * (w_ll_plf * L1_ft / 1000);
+    R2_ll_kips += 1.25 * (w_ll_plf * L1_ft / 1000);
+    R3_ll_kips += 0.375 * (w_ll_plf * (L2_ft || L1_ft) / 1000);
   }
 
-  // Calculate Point Load Reactions & Deflections
+  // Point Load Contributions (Asymmetric P * b / L vs P * a / L)
   pointLoads.forEach(pt => {
     const P_d = pt.P_dl || 0;
     const P_l = pt.P_ll || 0;
     const P_serv = P_d + P_l;
-    const P_fact = method === 'LRFD' ? (1.2 * P_d + 1.6 * P_l) : P_serv;
 
     const a = Math.min(Math.max(pt.pos_ft, 0), L1_ft);
     const b = L1_ft - a;
@@ -97,83 +95,52 @@ export function analyzeSteelBeam(inputs) {
     if (L1_ft > 0) {
       R1_dl_kips += P_d * (b / L1_ft);
       R2_dl_kips += P_d * (a / L1_ft);
-
       R1_ll_kips += P_l * (b / L1_ft);
       R2_ll_kips += P_l * (a / L1_ft);
 
-      M_point_factored += (P_fact * a * b * 12) / L1_ft;
-      V_point_factored += P_fact * (b / L1_ft);
+      M_point_kipin += (P_serv * a * b * 12) / L1_ft;
+      V_point_kips += P_serv * (b / L1_ft);
 
       delta_point_live += (P_l * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L1_in);
       delta_point_total += (P_serv * Math.pow(a * 12, 2) * Math.pow(b * 12, 2)) / (3 * E * section.Ix * L1_in);
     }
   });
 
-  // Reaction Totals
   const R1_service_kips = R1_dl_kips + R1_ll_kips;
   const R2_service_kips = R2_dl_kips + R2_ll_kips;
   const R3_service_kips = R3_dl_kips + R3_ll_kips;
 
-  const R1_factored_kips = method === 'LRFD' ? (1.2 * R1_dl_kips + 1.6 * R1_ll_kips) : R1_service_kips;
-  const R2_factored_kips = method === 'LRFD' ? (1.2 * R2_dl_kips + 1.6 * R2_ll_kips) : R2_service_kips;
-  const R3_factored_kips = method === 'LRFD' ? (1.2 * R3_dl_kips + 1.6 * R3_ll_kips) : R3_service_kips;
+  const R1_factored_kips = (1.2 * R1_dl_kips) + (1.6 * R1_ll_kips);
+  const R2_factored_kips = (1.2 * R2_dl_kips) + (1.6 * R2_ll_kips);
+  const R3_factored_kips = (1.2 * R3_dl_kips) + (1.6 * R3_ll_kips);
 
-  let M_max_kipin = 0;
-  let V_max_kips = 0;
-  let delta_uniform_live = 0;
-  let delta_uniform_total = 0;
+  const w_use_kft = method === 'ASD' ? w_service_kft : w_factored_kft;
+  let M_max_kipft = (w_use_kft * Math.pow(L1_ft, 2)) / 8 + (M_point_kipin / 12);
+  let V_max_kips = Math.max(R1_service_kips, R2_service_kips, R3_service_kips);
 
-  if (beamType === 'single') {
-    const M_uni_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
-    M_max_kipin = M_uni_fact + M_point_factored;
-    V_max_kips = Math.max(R1_factored_kips, R2_factored_kips);
+  const M_max_kipin = M_max_kipft * 12;
 
-    const w_ll_kin = w_ll_kft / 12;
-    const w_serv_kin = w_service_kft / 12;
-    delta_uniform_live = (5 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
-    delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
-
-  } else if (beamType === 'cantilever') {
-    const M_span_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
-    const M_cant_fact = (w_factored_kft * Math.pow(L2_ft, 2) * 12) / 2;
-    M_max_kipin = Math.max(M_span_fact, M_cant_fact) + M_point_factored;
-    V_max_kips = Math.max(R1_factored_kips, R2_factored_kips);
-
-    const w_ll_kin = w_ll_kft / 12;
-    const w_serv_kin = w_service_kft / 12;
-    delta_uniform_live = (5 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
-    delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
-
-  } else if (beamType === 'two-span') {
-    const M_neg_fact = (w_factored_kft * Math.pow(L1_ft, 2) * 12) / 8;
-    const M_pos_fact = (0.07 * w_factored_kft * Math.pow(L1_ft, 2) * 12);
-    M_max_kipin = Math.max(M_neg_fact, M_pos_fact) + M_point_factored;
-    V_max_kips = Math.max(R1_factored_kips, R2_factored_kips, R3_factored_kips);
-
-    const w_ll_kin = w_ll_kft / 12;
-    const w_serv_kin = w_service_kft / 12;
-    delta_uniform_live = (2 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
-    delta_uniform_total = (2 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
-  }
-
-  const M_max_kipft = M_max_kipin / 12;
-
-  let bendingStress_ksi = 0;
   let allowableStress_ksi = 0;
+  let bendingStress_ksi = 0;
   let stressRatio = 0;
 
   if (method === 'ASD') {
+    allowableStress_ksi = 0.66 * Fy; // Allowable ASD Bending Stress (33.0 ksi for A992)
     bendingStress_ksi = M_max_kipin / section.Sx;
-    allowableStress_ksi = 0.66 * Fy;
     stressRatio = bendingStress_ksi / allowableStress_ksi;
-  } else {
-    const Zx = section.Sx * 1.1;
-    const Mn_kipin = Fy * Zx;
-    const phiMn_kipft = (0.90 * Mn_kipin) / 12;
+  } else { // LRFD
+    const phi_b = 0.90;
+    const Mn_kipin = Fy * section.Sx;
+    const phi_Mn_kipft = (phi_b * Mn_kipin) / 12;
+    allowableStress_ksi = phi_Mn_kipft;
     bendingStress_ksi = M_max_kipft;
-    allowableStress_ksi = phiMn_kipft;
-    stressRatio = M_max_kipft / phiMn_kipft;
+    stressRatio = M_max_kipft / phi_Mn_kipft;
   }
+
+  const w_ll_kin = (w_ll_plf / 1000) / 12;
+  const w_serv_kin = w_service_kft / 12;
+  const delta_uniform_live = (5 * w_ll_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
+  const delta_uniform_total = (5 * w_serv_kin * Math.pow(L1_in, 4)) / (384 * E * section.Ix);
 
   const delta_live_in = delta_uniform_live + delta_point_live;
   const delta_total_in = delta_uniform_total + delta_point_total;
@@ -190,28 +157,24 @@ export function analyzeSteelBeam(inputs) {
   const isPass = passStress && passLiveDeflect && passTotalDeflect;
 
   return {
-    beamType,
     method,
+    beamType,
+    sectionName: section.name,
     L_ft: L1_ft,
     L2_ft,
-    totalTrib_ft,
-    w_dl_plf,
-    w_ll_plf,
     w_service_kft,
     w_factored_kft,
-    pointLoads,
-    // Bearing Support Reactions
     reactions: {
       R1: { dl: R1_dl_kips, ll: R1_ll_kips, service: R1_service_kips, factored: R1_factored_kips },
       R2: { dl: R2_dl_kips, ll: R2_ll_kips, service: R2_service_kips, factored: R2_factored_kips },
       R3: { dl: R3_dl_kips, ll: R3_ll_kips, service: R3_service_kips, factored: R3_factored_kips }
     },
-    V_max_kips,
     M_max_kipft,
-    M_max_kipin,
+    V_max_kips,
     bendingStress_ksi,
     allowableStress_ksi,
     stressRatio,
+    delta_max_in: delta_total_in,
     delta_live_in,
     delta_total_in,
     L360_in,
@@ -219,9 +182,61 @@ export function analyzeSteelBeam(inputs) {
     passStress,
     passLiveDeflect,
     passTotalDeflect,
-    isPass,
+    isPass
+  };
+}
+
+export function analyzeSteelColumn(inputs) {
+  const L_ft = inputs.L_ft || 12;
+  const K = inputs.K || 1.0;
+  const P_applied = inputs.P_axial_kips || 35.0;
+
+  const section = inputs.section || AISC_DATABASE[0];
+
+  const L_in = L_ft * 12;
+  const KL_in = K * L_in;
+
+  const rx = section.rx || 1.0;
+  const ry = section.ry || rx;
+  const r_min = Math.min(rx, ry);
+
+  const KLr_max = KL_in / r_min;
+
+  const E = 29000; // ksi
+  const Fy = section.Fy || 50; // ksi
+
+  const Fe_ksi = (Math.PI * Math.PI * E) / Math.pow(KLr_max, 2);
+
+  let Fcr_ksi = 0;
+  if (KLr_max <= 4.71 * Math.sqrt(E / Fy)) {
+    Fcr_ksi = Math.pow(0.658, Fy / Fe_ksi) * Fy;
+  } else {
+    Fcr_ksi = 0.877 * Fe_ksi;
+  }
+
+  const Omega_c = 1.67;
+  const P_allowable_kips = (Fcr_ksi * section.A) / Omega_c;
+  const P_cr_kips = Fe_ksi * section.A;
+
+  const capacityRatio = P_applied / P_allowable_kips;
+  const slendernessPass = KLr_max <= 200;
+  const capacityPass = capacityRatio <= 1.0;
+  const isPass = slendernessPass && capacityPass;
+
+  return {
     sectionName: section.name,
-    weight_lbft: section.weight
+    L_ft,
+    K,
+    KLr_max,
+    Fe_ksi,
+    Fcr_ksi,
+    P_cr_kips,
+    P_allowable_kips,
+    P_applied,
+    capacityRatio,
+    slendernessPass,
+    capacityPass,
+    isPass
   };
 }
 
@@ -238,49 +253,6 @@ export function findLightestSteelBeam(inputs) {
   }
 
   return { found: false };
-}
-
-export function analyzeSteelColumn(inputs) {
-  const L_in = inputs.L_ft * 12;
-  const K = inputs.K || 1.0;
-  const P_applied = inputs.P_axial_kips || 0;
-  const section = inputs.section;
-  const Fy = inputs.Fy_ksi || STEEL_CONSTANTS.DEFAULT_FY_KSI;
-  const E = STEEL_CONSTANTS.E_KSI;
-
-  const KLr_x = (K * L_in) / section.rx;
-  const KLr_y = (K * L_in) / section.ry;
-  const KLr_max = Math.max(KLr_x, KLr_y);
-
-  const Fe_ksi = (Math.pow(Math.PI, 2) * E) / Math.pow(KLr_max, 2);
-  const P_cr_kips = Fe_ksi * section.A;
-
-  const slendernessLimit = 4.71 * Math.sqrt(E / Fy);
-  let Fcr_ksi = 0;
-
-  if (KLr_max <= slendernessLimit) {
-    Fcr_ksi = Math.pow(0.658, Fy / Fe_ksi) * Fy;
-  } else {
-    Fcr_ksi = 0.877 * Fe_ksi;
-  }
-
-  const P_allowable_kips = (Fcr_ksi * section.A) / 1.67;
-  const capacityRatio = P_applied / P_allowable_kips;
-  const isPass = P_applied <= P_allowable_kips && KLr_max <= 200;
-
-  return {
-    KLr_x,
-    KLr_y,
-    KLr_max,
-    Fe_ksi,
-    P_cr_kips,
-    Fcr_ksi,
-    P_allowable_kips,
-    P_applied,
-    capacityRatio,
-    isPass,
-    slendernessPass: KLr_max <= 200
-  };
 }
 
 export function findLightestSteelColumn(inputs) {

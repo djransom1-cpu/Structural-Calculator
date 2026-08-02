@@ -1,12 +1,11 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - Asymmetric Side A & Side B Load Inputs (DL_A, LL_A, Trib_A vs DL_B, LL_B, Trib_B)
+ * - Asymmetric Support Reactions (R1, R2, R3) for Point Loads and Unbalanced Spans
  * - Multi-Member Project Management (Multiple Named Beams & Columns in 1 Project)
- * - Beam-to-Column Reaction Load Transfer Link (Transfer Beam R1/R2 to Column P_axial)
+ * - Beam-to-Column Reaction Load Transfer Link
  * - Project JSON File Export (.json) & Import (.json)
- * - Project Manager Landing Hub (#projectDashboard)
- * - Dynamic Built-Up Header Builder (# Plies x Ply Width x Depth)
- * - Access Passcode Authentication Protection
  */
 
 import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
@@ -29,11 +28,11 @@ class StructuralApp {
     this.activeMemberId = null;
 
     this.pointLoads = [
-      { P_dl: 1.5, P_ll: 3.0, pos_ft: 10.0 }
+      { P_dl: 1.5, P_ll: 3.0, pos_ft: 6.0 }
     ];
 
     this.tbPointLoads = [
-      { P_dl: 0.5, P_ll: 1.0, pos_ft: 7.0 }
+      { P_dl: 0.5, P_ll: 1.0, pos_ft: 5.0 }
     ];
 
     this.init();
@@ -446,6 +445,13 @@ class StructuralApp {
     if (data.sb_shape) document.getElementById('sb-shape').value = data.sb_shape;
     if (data.sb_span) document.getElementById('sb-span').value = data.sb_span;
 
+    if (data.sb_trib_left) document.getElementById('sb-trib-left').value = data.sb_trib_left;
+    if (data.sb_trib_right) document.getElementById('sb-trib-right').value = data.sb_trib_right;
+    if (data.sb_dl_left) document.getElementById('sb-dl-left').value = data.sb_dl_left;
+    if (data.sb_dl_right) document.getElementById('sb-dl-right').value = data.sb_dl_right;
+    if (data.sb_ll_left) document.getElementById('sb-ll-left').value = data.sb_ll_left;
+    if (data.sb_ll_right) document.getElementById('sb-ll-right').value = data.sb_ll_right;
+
     if (data.sc_axial) document.getElementById('sc-axial').value = data.sc_axial;
 
     if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
@@ -454,6 +460,13 @@ class StructuralApp {
     if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
     if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
     if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
+
+    if (data.tb_trib_left) document.getElementById('tb-trib-left').value = data.tb_trib_left;
+    if (data.tb_trib_right) document.getElementById('tb-trib-right').value = data.tb_trib_right;
+    if (data.tb_dl_left) document.getElementById('tb-dl-left').value = data.tb_dl_left;
+    if (data.tb_dl_right) document.getElementById('tb-dl-right').value = data.tb_dl_right;
+    if (data.tb_ll_left) document.getElementById('tb-ll-left').value = data.tb_ll_left;
+    if (data.tb_ll_right) document.getElementById('tb-ll-right').value = data.tb_ll_right;
 
     if (data.pointLoads) this.pointLoads = data.pointLoads;
     if (data.tbPointLoads) this.tbPointLoads = data.tbPointLoads;
@@ -467,6 +480,12 @@ class StructuralApp {
       sb_family: document.getElementById('sb-family').value,
       sb_shape: document.getElementById('sb-shape').value,
       sb_span: document.getElementById('sb-span').value,
+      sb_trib_left: document.getElementById('sb-trib-left').value,
+      sb_trib_right: document.getElementById('sb-trib-right').value,
+      sb_dl_left: document.getElementById('sb-dl-left').value,
+      sb_dl_right: document.getElementById('sb-dl-right').value,
+      sb_ll_left: document.getElementById('sb-ll-left').value,
+      sb_ll_right: document.getElementById('sb-ll-right').value,
       sc_shape: document.getElementById('sc-shape').value,
       sc_axial: document.getElementById('sc-axial').value,
       cf_pdead: document.getElementById('cf-pdead').value,
@@ -477,6 +496,12 @@ class StructuralApp {
       tb_ply_width: document.getElementById('tb-ply-width').value,
       tb_depth: document.getElementById('tb-depth').value,
       tb_size: document.getElementById('tb-size').value,
+      tb_trib_left: document.getElementById('tb-trib-left').value,
+      tb_trib_right: document.getElementById('tb-trib-right').value,
+      tb_dl_left: document.getElementById('tb-dl-left').value,
+      tb_dl_right: document.getElementById('tb-dl-right').value,
+      tb_ll_left: document.getElementById('tb-ll-left').value,
+      tb_ll_right: document.getElementById('tb-ll-right').value,
       pointLoads: this.pointLoads,
       tbPointLoads: this.tbPointLoads
     };
@@ -739,23 +764,24 @@ class StructuralApp {
     document.getElementById('tb-preset')?.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val === 'floor') {
-        document.getElementById('tb-dl').value = 10;
-        document.getElementById('tb-ll').value = 40;
+        document.getElementById('tb-dl-left').value = 10;
+        document.getElementById('tb-dl-right').value = 10;
+        document.getElementById('tb-ll-left').value = 40;
+        document.getElementById('tb-ll-right').value = 40;
         document.getElementById('tb-deflect-live').value = "360";
         document.getElementById('tb-deflect-total').value = "240";
       } else if (val === 'roof') {
-        document.getElementById('tb-dl').value = 15;
-        document.getElementById('tb-ll').value = 20;
+        document.getElementById('tb-dl-left').value = 15;
+        document.getElementById('tb-dl-right').value = 15;
+        document.getElementById('tb-ll-left').value = 20;
+        document.getElementById('tb-ll-right').value = 20;
         document.getElementById('tb-deflect-live').value = "240";
         document.getElementById('tb-deflect-total').value = "180";
       } else if (val === 'header') {
-        document.getElementById('tb-dl').value = 15;
-        document.getElementById('tb-ll').value = 50;
-        document.getElementById('tb-deflect-live').value = "360";
-        document.getElementById('tb-deflect-total').value = "240";
-      } else if (val === 'deck') {
-        document.getElementById('tb-dl').value = 10;
-        document.getElementById('tb-ll').value = 50;
+        document.getElementById('tb-dl-left').value = 15;
+        document.getElementById('tb-dl-right').value = 15;
+        document.getElementById('tb-ll-left').value = 50;
+        document.getElementById('tb-ll-right').value = 50;
         document.getElementById('tb-deflect-live').value = "360";
         document.getElementById('tb-deflect-total').value = "240";
       }
@@ -788,30 +814,29 @@ class StructuralApp {
 
     document.getElementById('sb-load-mode')?.addEventListener('change', (e) => {
       const isTrib = e.target.value === 'tributary';
-      document.getElementById('group-trib').style.display = isTrib ? 'grid' : 'none';
-      document.getElementById('label-dl').textContent = isTrib ? 'Dead Load (DL) (psf)' : 'Dead Load (DL) (plf)';
-      document.getElementById('label-ll').textContent = isTrib ? 'Live Load (LL) (psf)' : 'Live Load (LL) (plf)';
+      document.getElementById('group-trib').style.display = isTrib ? 'flex' : 'none';
+      document.getElementById('group-direct-loads').style.display = isTrib ? 'none' : 'grid';
       this.recalculate();
     });
 
     document.getElementById('tb-load-mode')?.addEventListener('change', (e) => {
       const isTrib = e.target.value === 'tributary';
-      document.getElementById('tb-group-trib').style.display = isTrib ? 'grid' : 'none';
-      document.getElementById('tb-label-dl').textContent = isTrib ? 'Dead Load (DL) (psf)' : 'Dead Load (DL) (plf)';
-      document.getElementById('tb-label-ll').textContent = isTrib ? 'Live Load (LL) (psf)' : 'Live Load (LL) (plf)';
+      document.getElementById('tb-group-trib').style.display = isTrib ? 'flex' : 'none';
+      document.getElementById('tb-group-direct-loads').style.display = isTrib ? 'none' : 'grid';
       this.recalculate();
     });
 
     const inputIds = [
       'sb-shape', 'sb-preset', 'sb-beam-type', 'sb-span', 'sb-span2', 'sb-method', 'sb-load-mode',
-      'sb-trib-left', 'sb-trib-right', 'sb-dl', 'sb-ll', 'sb-selfweight',
-      'sb-deflect-live', 'sb-deflect-total',
+      'sb-trib-left', 'sb-trib-right', 'sb-dl-left', 'sb-dl-right', 'sb-ll-left', 'sb-ll-right',
+      'sb-dl', 'sb-ll', 'sb-selfweight', 'sb-deflect-live', 'sb-deflect-total',
       'sc-shape', 'sc-length', 'sc-k', 'sc-axial',
       'cf-pdead', 'cf-plive', 'cf-width', 'cf-thick', 'cf-qallow', 'cf-fc',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
       'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
       'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
-      'tb-trib-left', 'tb-trib-right', 'tb-dl', 'tb-ll', 'tb-deflect-live', 'tb-deflect-total',
+      'tb-trib-left', 'tb-trib-right', 'tb-dl-left', 'tb-dl-right', 'tb-ll-left', 'tb-ll-right',
+      'tb-dl', 'tb-ll', 'tb-deflect-live', 'tb-deflect-total',
       'rep-engineer', 'rep-company', 'rep-project', 'rep-client'
     ];
 
@@ -872,8 +897,10 @@ class StructuralApp {
       L2_ft: parseFloat(document.getElementById('sb-span2').value) || 0,
       tribLeft_ft: parseFloat(document.getElementById('sb-trib-left').value) || 0,
       tribRight_ft: parseFloat(document.getElementById('sb-trib-right').value) || 0,
-      dl_psf: parseFloat(document.getElementById('sb-dl').value) || 0,
-      ll_psf: parseFloat(document.getElementById('sb-ll').value) || 0,
+      dlLeft_psf: parseFloat(document.getElementById('sb-dl-left').value) || 0,
+      dlRight_psf: parseFloat(document.getElementById('sb-dl-right').value) || 0,
+      llLeft_psf: parseFloat(document.getElementById('sb-ll-left').value) || 0,
+      llRight_psf: parseFloat(document.getElementById('sb-ll-right').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
       pointLoads: this.pointLoads,
@@ -927,8 +954,10 @@ class StructuralApp {
       L2_ft: parseFloat(document.getElementById('tb-span2').value) || 0,
       tribLeft_ft: parseFloat(document.getElementById('tb-trib-left').value) || 0,
       tribRight_ft: parseFloat(document.getElementById('tb-trib-right').value) || 0,
-      dl_psf: parseFloat(document.getElementById('tb-dl').value) || 0,
-      ll_psf: parseFloat(document.getElementById('tb-ll').value) || 0,
+      dlLeft_psf: parseFloat(document.getElementById('tb-dl-left').value) || 0,
+      dlRight_psf: parseFloat(document.getElementById('tb-dl-right').value) || 0,
+      llLeft_psf: parseFloat(document.getElementById('tb-ll-left').value) || 0,
+      llRight_psf: parseFloat(document.getElementById('tb-ll-right').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('tb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('tb-ll').value) || 0,
       pointLoads: this.tbPointLoads,
@@ -984,8 +1013,10 @@ class StructuralApp {
       L2_ft: parseFloat(document.getElementById('sb-span2').value) || 0,
       tribLeft_ft: parseFloat(document.getElementById('sb-trib-left').value) || 0,
       tribRight_ft: parseFloat(document.getElementById('sb-trib-right').value) || 0,
-      dl_psf: parseFloat(document.getElementById('sb-dl').value) || 0,
-      ll_psf: parseFloat(document.getElementById('sb-ll').value) || 0,
+      dlLeft_psf: parseFloat(document.getElementById('sb-dl-left').value) || 0,
+      dlRight_psf: parseFloat(document.getElementById('sb-dl-right').value) || 0,
+      llLeft_psf: parseFloat(document.getElementById('sb-ll-left').value) || 0,
+      llRight_psf: parseFloat(document.getElementById('sb-ll-right').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('sb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('sb-ll').value) || 0,
       pointLoads: this.pointLoads,
@@ -1136,8 +1167,10 @@ class StructuralApp {
       L2_ft: parseFloat(document.getElementById('tb-span2').value) || 0,
       tribLeft_ft: parseFloat(document.getElementById('tb-trib-left').value) || 0,
       tribRight_ft: parseFloat(document.getElementById('tb-trib-right').value) || 0,
-      dl_psf: parseFloat(document.getElementById('tb-dl').value) || 0,
-      ll_psf: parseFloat(document.getElementById('tb-ll').value) || 0,
+      dlLeft_psf: parseFloat(document.getElementById('tb-dl-left').value) || 0,
+      dlRight_psf: parseFloat(document.getElementById('tb-dl-right').value) || 0,
+      llLeft_psf: parseFloat(document.getElementById('tb-ll-left').value) || 0,
+      llRight_psf: parseFloat(document.getElementById('tb-ll-right').value) || 0,
       w_dl_plf: parseFloat(document.getElementById('tb-dl').value) || 0,
       w_ll_plf: parseFloat(document.getElementById('tb-ll').value) || 0,
       pointLoads: this.tbPointLoads,
