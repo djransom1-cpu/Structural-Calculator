@@ -1,6 +1,7 @@
 /**
  * Master Application State & Event Controller
  * Features:
+ * - ASCE 7 Wind Uplift Pressure Calculator Modal (q_z Velocity Pressure & Roof Suction)
  * - Interactive Field Guide & Examples Tab for all Input Fields
  * - AISC DG1 Steel Column Base Plate & Anchor Bolts Design Engine
  * - ASCE 7 / IBC Wind Net Uplift Load Combinations & Hold-Down Tension Checks
@@ -23,6 +24,7 @@ class StructuralApp {
     this.unitSystem = 'imperial';
     this.renderer = null;
     this.lastResult = null;
+    this.calculatedWindPsf = 0;
     this.masterPasscode = localStorage.getItem('structural_suite_passcode') || 'STRUCT2026';
     
     this.projects = this.loadProjectsFromStorage();
@@ -50,6 +52,7 @@ class StructuralApp {
     this.renderTimberPointLoadsUI();
     this.setupEventListeners();
     this.setupSubnavTabs();
+    this.setupWindCalculator();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
     if ('serviceWorker' in navigator) {
@@ -63,6 +66,84 @@ class StructuralApp {
     }
 
     this.recalculate();
+  }
+
+  setupWindCalculator() {
+    const modal = document.getElementById('windCalcModal');
+    const btnOpenList = document.querySelectorAll('.open-wind-calc-btn');
+    const btnClose = document.getElementById('closeWindCalcBtn');
+    const btnApply = document.getElementById('applyWindBtn');
+
+    const inputSpeed = document.getElementById('wind-speed');
+    const inputExp = document.getElementById('wind-exposure');
+    const inputHeight = document.getElementById('wind-height');
+    const inputZone = document.getElementById('wind-zone');
+
+    btnOpenList.forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.classList.remove('hidden');
+        this.computeWindPressure();
+      });
+    });
+
+    btnClose.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+
+    [inputSpeed, inputExp, inputHeight, inputZone].forEach(el => {
+      if (el) {
+        el.addEventListener('input', () => this.computeWindPressure());
+        el.addEventListener('change', () => this.computeWindPressure());
+      }
+    });
+
+    btnApply.addEventListener('click', () => {
+      const psfVal = Math.round(this.calculatedWindPsf);
+      if (this.currentModule === 'steel-beam') {
+        document.getElementById('sb-wind-psf').value = psfVal;
+      } else if (this.currentModule === 'timber') {
+        document.getElementById('tb-wind-psf').value = psfVal;
+      }
+      modal.classList.add('hidden');
+      alert(`⚡ Applied ${psfVal} psf ASCE 7 Net Wind Uplift to active module!`);
+      this.recalculate();
+      this.autoSaveActiveProject();
+    });
+  }
+
+  computeWindPressure() {
+    const V = parseFloat(document.getElementById('wind-speed').value) || 115;
+    const exp = document.getElementById('wind-exposure').value;
+    const h = parseFloat(document.getElementById('wind-height').value) || 20;
+    const zone = document.getElementById('wind-zone').value;
+
+    let Kz = 0.85;
+    if (exp === 'B') {
+      Kz = 0.575 * Math.pow(Math.max(h, 15) / 15, 0.21);
+    } else if (exp === 'C') {
+      Kz = 0.85 * Math.pow(Math.max(h, 15) / 15, 0.15);
+    } else if (exp === 'D') {
+      Kz = 1.03 * Math.pow(Math.max(h, 15) / 15, 0.12);
+    }
+
+    const Kd = 0.85;
+    const Kzt = 1.0;
+    const Ke = 1.0;
+
+    // qz = 0.00256 * Kz * Kzt * Kd * Ke * V^2
+    const qz = 0.00256 * Kz * Kzt * Kd * Ke * Math.pow(V, 2);
+
+    let coeffNet = 1.38; // Zone 2 default
+    if (zone === 'field') coeffNet = 1.08;
+    else if (zone === 'edge') coeffNet = 1.38;
+    else if (zone === 'corner') coeffNet = 1.88;
+
+    const W_psf = qz * coeffNet;
+    this.calculatedWindPsf = W_psf;
+
+    document.getElementById('res-qz').textContent = `${qz.toFixed(1)} psf`;
+    document.getElementById('res-gcp').textContent = `-${coeffNet.toFixed(2)}`;
+    document.getElementById('res-w-psf').textContent = `${W_psf.toFixed(1)} psf`;
   }
 
   setupSubnavTabs() {

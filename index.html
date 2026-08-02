@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
-  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, and Timber Framing with Interactive Field Explanations.">
+  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, Timber Framing with ASCE 7 Wind Uplift Calculator.">
   <title>Structural Engineering Calculator & Estimator</title>
   
   <!-- PWA Manifest -->
@@ -34,6 +34,75 @@
         <div id="authErrorMsg" class="auth-error-msg" style="display:none;">⚠️ Invalid passcode. Access denied.</div>
         <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:1rem; width:100%;">Unlock Suite</button>
       </form>
+    </div>
+  </div>
+
+  <!-- ASCE 7 WIND UPLIFT PRESSURE CALCULATOR MODAL -->
+  <div id="windCalcModal" class="dashboard-overlay hidden">
+    <div class="dashboard-container" style="max-width:540px;">
+      <div class="dashboard-header" style="padding-bottom:0.75rem; border-bottom:1px solid var(--panel-border);">
+        <div class="brand-icon" style="background:rgba(239, 68, 68, 0.15); color:var(--fail-color);">🌪️</div>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:700; color:var(--text-color);">ASCE 7 Wind Uplift Pressure Calculator</h2>
+          <p style="color:var(--text-muted); font-size:0.85rem;">Compute Velocity Pressure $q_z$ & Design Roof Net Uplift Suction ($W_{\text{psf}}$) per ASCE 7-16 / 7-22.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.85rem; padding-top:1rem;">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="wind-speed">Basic Wind Speed V (mph)</label>
+            <input type="number" id="wind-speed" class="form-control" value="115" step="5" min="85" max="220" placeholder="e.g. 115 mph">
+          </div>
+          <div class="form-group">
+            <label for="wind-exposure">Exposure Category</label>
+            <select id="wind-exposure" class="form-control">
+              <option value="B">Exposure B (Suburban / Wooded)</option>
+              <option value="C" selected>Exposure C (Open Terrain / Flat Fields)</option>
+              <option value="D">Exposure D (Flat Coastal / Open Water)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="wind-height">Roof Mean Height h (ft)</label>
+            <input type="number" id="wind-height" class="form-control" value="20" step="5" min="10" max="100">
+          </div>
+          <div class="form-group">
+            <label for="wind-zone">Roof Uplift Zone</label>
+            <select id="wind-zone" class="form-control">
+              <option value="field">Zone 1 - Interior Roof Field (Standard)</option>
+              <option value="edge" selected>Zone 2 - Roof Eaves & Ridges (Edge Suction)</option>
+              <option value="corner">Zone 3 - Roof Corners / Overhangs (Max Suction)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- WIND CALCULATION RESULTS CARD -->
+        <div style="background:rgba(239, 68, 68, 0.08); border:1px solid rgba(239, 68, 68, 0.25); border-radius:8px; padding:1rem; display:flex; flex-direction:column; gap:0.5rem; margin-top:0.25rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.85rem; font-weight:600; color:var(--text-muted);">Velocity Pressure $q_z$:</span>
+            <strong id="res-qz" style="font-size:1rem; color:var(--text-color);">24.8 psf</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.85rem; font-weight:600; color:var(--text-muted);">Net Pressure Coefficient $(GC_p - GC_{pi})$:</span>
+            <strong id="res-gcp" style="font-size:1rem; color:var(--text-color);">-1.20</strong>
+          </div>
+          <hr style="border:none; border-top:1px solid rgba(239,68,68,0.2); margin:0.25rem 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:1rem; font-weight:700; color:var(--fail-color);">Calculated Net Wind Uplift Suction ($W$):</span>
+            <strong id="res-w-psf" style="font-size:1.4rem; font-weight:800; color:var(--fail-color);">29.8 psf</strong>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button id="applyWindBtn" class="btn btn-primary" style="flex:2; padding:0.75rem; font-weight:700; background:#ef4444; border-color:#ef4444;">
+            ⚡ Apply Calculated Suction to Active Beam
+          </button>
+          <button id="closeWindCalcBtn" class="btn btn-outline" style="flex:1; padding:0.75rem;">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -316,11 +385,16 @@
               </div>
             </div>
 
-            <!-- WIND UPLIFT LOAD CONTROL -->
-            <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);">
-              <div class="form-group">
+            <!-- WIND UPLIFT LOAD CONTROL + CALCULATOR TRIGGER -->
+            <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2); align-items:flex-end;">
+              <div class="form-group" style="flex:2;">
                 <label for="sb-wind-psf" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Load W (psf)</label>
                 <input type="number" id="sb-wind-psf" class="form-control" value="0" step="5" min="0" placeholder="e.g. 16 psf suction">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <button type="button" class="open-wind-calc-btn btn btn-outline" style="padding:0.45rem; font-size:0.75rem; color:var(--fail-color); border-color:var(--fail-color); width:100%;">
+                  🧮 Wind Calc
+                </button>
               </div>
             </div>
           </div>
@@ -803,11 +877,16 @@
               </div>
             </div>
 
-            <!-- WIND UPLIFT LOAD CONTROL FOR WOOD -->
-            <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);">
-              <div class="form-group">
+            <!-- WIND UPLIFT LOAD CONTROL FOR WOOD + CALCULATOR TRIGGER -->
+            <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2); align-items:flex-end;">
+              <div class="form-group" style="flex:2;">
                 <label for="tb-wind-psf" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Load W (psf)</label>
                 <input type="number" id="tb-wind-psf" class="form-control" value="0" step="5" min="0" placeholder="e.g. 16 psf suction">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <button type="button" class="open-wind-calc-btn btn btn-outline" style="padding:0.45rem; font-size:0.75rem; color:var(--fail-color); border-color:var(--fail-color); width:100%;">
+                  🧮 Wind Calc
+                </button>
               </div>
             </div>
           </div>
