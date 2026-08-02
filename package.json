@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build:pwa": "echo Building PWA distribution...",
-    "dist": "electron-builder --win portable",
+    "dist": "electron-builder --win nsis",
     "cap:add:ios": "cap add ios",
     "cap:add:android": "cap add android",
     "cap:copy": "cap copy"
@@ -45,8 +45,15 @@
       "js/**/*"
     ],
     "win": {
-      "target": ["portable", "dir"],
+      "target": ["nsis", "portable", "dir"],
       "icon": "icons/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "mac": {
       "target": "dmg",
