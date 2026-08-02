@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build:pwa": "echo Building PWA distribution...",
-    "dist": "electron-builder",
+    "dist": "electron-builder --win portable",
     "cap:add:ios": "cap add ios",
     "cap:add:android": "cap add android",
     "cap:copy": "cap copy"
@@ -34,6 +34,7 @@
   "build": {
     "appId": "com.structuralcalc.app",
     "productName": "Structural Engineering Suite",
+    "cscLink": null,
     "files": [
       "main.js",
       "index.html",
@@ -44,7 +45,7 @@
       "js/**/*"
     ],
     "win": {
-      "target": "nsis",
+      "target": ["portable", "dir"],
       "icon": "icons/icon-512.png"
     },
     "mac": {
