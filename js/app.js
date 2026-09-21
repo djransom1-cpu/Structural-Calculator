@@ -877,6 +877,7 @@ class StructuralApp {
 
     document.getElementById('transferR1Btn')?.addEventListener('click', () => this.transferReactionToColumn('R1'));
     document.getElementById('transferR2Btn')?.addEventListener('click', () => this.transferReactionToColumn('R2'));
+    document.getElementById('transferColumnBtn')?.addEventListener('click', () => this.transferColumnLoadToFooting());
   }
 
   addNewMemberToProject(customName = null, customModule = null, initialData = {}) {
@@ -984,6 +985,29 @@ class StructuralApp {
       document.getElementById('sc-wind-uplift').value = upliftKips;
     }
     alert(`⚡ Linked Reaction ${supportPoint} (${axialLoadKips} kips gravity | ${upliftKips} kips wind uplift) to new Column "${colMemName}"!`);
+    this.recalculate();
+  }
+
+  transferColumnLoadToFooting() {
+    if (!this.lastResult || this.lastResult.P_applied === undefined) {
+      alert("⚠️ Please run a Steel Column calculation first to get its base reaction.");
+      return;
+    }
+
+    const res = this.lastResult;
+    const colMemName = this.projects[this.activeProjectId]?.members[this.activeMemberId]?.name || "Column";
+    const footingMemName = `Footing for ${colMemName}`;
+    const deadLoadKips = res.P_applied.toFixed(1);
+    const upliftKips = res.P_net_tension_kips ? res.P_net_tension_kips.toFixed(1) : 0;
+
+    this.addNewMemberToProject(footingMemName, 'footing', { cf_pdead: deadLoadKips, cf_plive: '0', cf_puplift: upliftKips });
+
+    document.getElementById('cf-pdead').value = deadLoadKips;
+    document.getElementById('cf-plive').value = '0';
+    if (document.getElementById('cf-puplift')) {
+      document.getElementById('cf-puplift').value = upliftKips;
+    }
+    alert(`⚡ Linked Column Axial Load (${deadLoadKips} kips gravity | ${upliftKips} kips wind uplift) to new Footing "${footingMemName}"! The column module combines dead + live into one axial load, so it landed in the footing's Dead Load field — split it out manually if you need the D/L breakdown for the footing check.`);
     this.recalculate();
   }
 
@@ -1867,6 +1891,8 @@ class StructuralApp {
 
     const transferContainer = document.getElementById('transferReactionContainer');
     if (transferContainer) transferContainer.style.display = 'flex';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'none';
 
     const totalPointLoad = this.pointLoads.reduce((sum, p) => sum + p.P_dl + p.P_ll, 0);
     const r = res.reactions;
@@ -1910,6 +1936,8 @@ class StructuralApp {
   runSteelColumn() {
     const transferContainer = document.getElementById('transferReactionContainer');
     if (transferContainer) transferContainer.style.display = 'none';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'flex';
 
     const secName = document.getElementById('sc-shape').value;
     const section = getSectionByName(secName);
@@ -1952,6 +1980,8 @@ class StructuralApp {
   runFooting() {
     const transferContainer = document.getElementById('transferReactionContainer');
     if (transferContainer) transferContainer.style.display = 'none';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'none';
 
     const inputs = {
       P_dead_kips: parseFloat(document.getElementById('cf-pdead').value) || 40,
@@ -1992,6 +2022,8 @@ class StructuralApp {
   runRetaining() {
     const transferContainer = document.getElementById('transferReactionContainer');
     if (transferContainer) transferContainer.style.display = 'none';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'none';
 
     const wallCondition = document.getElementById('rw-condition')?.value || 'cantilever';
     const isBraced = wallCondition === 'braced';
@@ -2067,6 +2099,8 @@ class StructuralApp {
 
     const transferContainer = document.getElementById('transferReactionContainer');
     if (transferContainer) transferContainer.style.display = 'flex';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'none';
 
     const r = res.reactions;
 
@@ -2115,6 +2149,8 @@ class StructuralApp {
 
     const transferContainer = document.getElementById('transferReactionContainer');
     if (transferContainer) transferContainer.style.display = 'none';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'none';
 
     const metrics = [
       { label: "Truss Profile & Span", val: `${res.trussType.toUpperCase()} (${res.spanFt}' Span)`, sub: `${res.member.name} ${res.species.name} @ ${res.spacingInches}" OC` },
@@ -2132,6 +2168,11 @@ class StructuralApp {
   }
 
   runBracedWall() {
+    const transferContainer = document.getElementById('transferReactionContainer');
+    if (transferContainer) transferContainer.style.display = 'none';
+    const transferColumnContainer = document.getElementById('transferColumnContainer');
+    if (transferColumnContainer) transferColumnContainer.style.display = 'none';
+
     const getVal = (id, fallback = '') => {
       const el = document.getElementById(id);
       return el ? el.value : fallback;

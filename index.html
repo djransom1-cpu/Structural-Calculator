@@ -1471,6 +1471,17 @@
         </div>
       </div>
 
+      <!-- COLUMN TO FOOTING AXIAL LOAD TRANSFER ACTION BAR -->
+      <div id="transferColumnContainer" style="display:none; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:0.75rem 1rem; align-items:center; justify-content:space-between; gap:0.5rem;">
+        <div>
+          <div style="font-weight:700; font-size:0.85rem; color:#10b981;">🏛️ Column Base Reaction Link</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">Transfer this column's axial load (gravity + wind uplift) to a Footing!</div>
+        </div>
+        <div style="display:flex; gap:0.4rem;">
+          <button id="transferColumnBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link Axial Load → Footing</button>
+        </div>
+      </div>
+
       <!-- Key Metrics Output Grid -->
       <div class="metrics-grid" id="metricsGrid">
         <!-- Dynamically populated by JS app.js -->
