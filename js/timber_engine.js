@@ -129,7 +129,47 @@ export const TIMBER_MEMBERS = [
   { name: "Glulam 5-1/8x30", category: "glulam", b: 5.125, d: 30, Area: 153.75, Sx: 768.75, Ix: 11531.25, weight: 37.4 },
   { name: "Glulam 6-3/4x30", category: "glulam", b: 6.75, d: 30, Area: 202.50, Sx: 1012.50, Ix: 15187.50, weight: 49.2 },
   { name: "Glulam 8-3/4x30", category: "glulam", b: 8.75, d: 30, Area: 262.50, Sx: 1312.50, Ix: 19687.50, weight: 63.8 },
-  { name: "Glulam 10-3/4x30", category: "glulam", b: 10.75, d: 30, Area: 322.50, Sx: 1612.50, Ix: 24187.50, weight: 78.4 }
+  { name: "Glulam 10-3/4x30", category: "glulam", b: 10.75, d: 30, Area: 322.50, Sx: 1612.50, Ix: 24187.50, weight: 78.4 },
+  { name: "PSL 3-1/2x9-1/4", category: "psl", b: 3.5, d: 9.25, Area: 32.38, Sx: 49.91, Ix: 230.84, weight: 9.4 },
+  { name: "PSL 5-1/4x9-1/4", category: "psl", b: 5.25, d: 9.25, Area: 48.56, Sx: 74.87, Ix: 346.26, weight: 14.2 },
+  { name: "PSL 7x9-1/4", category: "psl", b: 7, d: 9.25, Area: 64.75, Sx: 99.82, Ix: 461.68, weight: 18.9 },
+  { name: "PSL 9-1/2x9-1/4", category: "psl", b: 9.5, d: 9.25, Area: 87.88, Sx: 135.47, Ix: 626.57, weight: 25.6 },
+  { name: "PSL 3-1/2x11-7/8", category: "psl", b: 3.5, d: 11.875, Area: 41.56, Sx: 82.26, Ix: 488.41, weight: 12.1 },
+  { name: "PSL 5-1/4x11-7/8", category: "psl", b: 5.25, d: 11.875, Area: 62.34, Sx: 123.39, Ix: 732.62, weight: 18.2 },
+  { name: "PSL 7x11-7/8", category: "psl", b: 7, d: 11.875, Area: 83.13, Sx: 164.52, Ix: 976.83, weight: 24.2 },
+  { name: "PSL 9-1/2x11-7/8", category: "psl", b: 9.5, d: 11.875, Area: 112.81, Sx: 223.27, Ix: 1325.69, weight: 32.9 },
+  { name: "PSL 3-1/2x14", category: "psl", b: 3.5, d: 14, Area: 49.00, Sx: 114.33, Ix: 800.33, weight: 14.3 },
+  { name: "PSL 5-1/4x14", category: "psl", b: 5.25, d: 14, Area: 73.50, Sx: 171.50, Ix: 1200.50, weight: 21.4 },
+  { name: "PSL 7x14", category: "psl", b: 7, d: 14, Area: 98.00, Sx: 228.67, Ix: 1600.67, weight: 28.6 },
+  { name: "PSL 9-1/2x14", category: "psl", b: 9.5, d: 14, Area: 133.00, Sx: 310.33, Ix: 2172.33, weight: 38.8 },
+  { name: "PSL 3-1/2x16", category: "psl", b: 3.5, d: 16, Area: 56.00, Sx: 149.33, Ix: 1194.67, weight: 16.3 },
+  { name: "PSL 5-1/4x16", category: "psl", b: 5.25, d: 16, Area: 84.00, Sx: 224.00, Ix: 1792.00, weight: 24.5 },
+  { name: "PSL 7x16", category: "psl", b: 7, d: 16, Area: 112.00, Sx: 298.67, Ix: 2389.33, weight: 32.7 },
+  { name: "PSL 9-1/2x16", category: "psl", b: 9.5, d: 16, Area: 152.00, Sx: 405.33, Ix: 3242.67, weight: 44.3 },
+  { name: "PSL 3-1/2x18", category: "psl", b: 3.5, d: 18, Area: 63.00, Sx: 189.00, Ix: 1701.00, weight: 18.4 },
+  { name: "PSL 5-1/4x18", category: "psl", b: 5.25, d: 18, Area: 94.50, Sx: 283.50, Ix: 2551.50, weight: 27.6 },
+  { name: "PSL 7x18", category: "psl", b: 7, d: 18, Area: 126.00, Sx: 378.00, Ix: 3402.00, weight: 36.8 },
+  { name: "PSL 9-1/2x18", category: "psl", b: 9.5, d: 18, Area: 171.00, Sx: 513.00, Ix: 4617.00, weight: 49.9 },
+  { name: "PSL 3-1/2x20", category: "psl", b: 3.5, d: 20, Area: 70.00, Sx: 233.33, Ix: 2333.33, weight: 20.4 },
+  { name: "PSL 5-1/4x20", category: "psl", b: 5.25, d: 20, Area: 105.00, Sx: 350.00, Ix: 3500.00, weight: 30.6 },
+  { name: "PSL 7x20", category: "psl", b: 7, d: 20, Area: 140.00, Sx: 466.67, Ix: 4666.67, weight: 40.8 },
+  { name: "PSL 9-1/2x20", category: "psl", b: 9.5, d: 20, Area: 190.00, Sx: 633.33, Ix: 6333.33, weight: 55.4 },
+  { name: "PSL 3-1/2x24", category: "psl", b: 3.5, d: 24, Area: 84.00, Sx: 336.00, Ix: 4032.00, weight: 24.5 },
+  { name: "PSL 5-1/4x24", category: "psl", b: 5.25, d: 24, Area: 126.00, Sx: 504.00, Ix: 6048.00, weight: 36.8 },
+  { name: "PSL 7x24", category: "psl", b: 7, d: 24, Area: 168.00, Sx: 672.00, Ix: 8064.00, weight: 49.0 },
+  { name: "PSL 9-1/2x24", category: "psl", b: 9.5, d: 24, Area: 228.00, Sx: 912.00, Ix: 10944.00, weight: 66.5 },
+  // I-Joist entries below are NOT manufacturer-published values. Real TJI/I-joist Sx/Ix come from
+  // proprietary flange-web geometry published only in the maker's spec sheets (e.g. Weyerhaeuser
+  // TJ-4000). These are a generic idealized flange+web section (1.75" x 1.25" flanges, 0.375" OSB
+  // web) computed for a plausible order-of-magnitude estimate. Verify against actual product data
+  // before using for a real design.
+  { name: "I-Joist 9-1/2 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 9.5, Area: 7.00, Sx: 18.05, Ix: 85.73, weight: 2.0 },
+  { name: "I-Joist 11-7/8 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 11.875, Area: 7.89, Sx: 25.23, Ix: 149.79, weight: 2.3 },
+  { name: "I-Joist 14 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 14, Area: 8.69, Sx: 32.27, Ix: 225.90, weight: 2.5 },
+  { name: "I-Joist 16 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 16, Area: 9.44, Sx: 39.43, Ix: 315.42, weight: 2.8 },
+  { name: "I-Joist 18 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 18, Area: 10.19, Sx: 47.09, Ix: 423.81, weight: 3.0 },
+  { name: "I-Joist 20 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 20, Area: 10.94, Sx: 55.26, Ix: 552.57, weight: 3.2 },
+  { name: "I-Joist 24 in Depth (Approx - Verify Mfr Spec)", category: "ijoist", b: 1.75, d: 24, Area: 12.44, Sx: 73.10, Ix: 877.23, weight: 3.6 }
 ];
 
 export const TIMBER_CUSTOM_SIZE_VALUE = "__custom__";
