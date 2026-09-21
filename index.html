@@ -184,7 +184,9 @@
                 <option value="steel-column">🏛️ Steel Column & Base Plate</option>
                 <option value="footing">🧱 Concrete Spread Footing</option>
                 <option value="retaining">📐 Retaining Wall</option>
-                <option value="timber">🪵 Timber Framing & Engineered Wood</option>
+                <option value="timber">🪵 Timber Framing &amp; Engineered Wood</option>
+                <option value="truss">🔺 Timber Roof Truss</option>
+                <option value="braced-wall">🛡️ Above-Grade Braced Wall (Wood &amp; CMU)</option>
               </select>
             </div>
             <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:0.95rem; margin-top:0.5rem;">🚀 Launch Project & Enable Auto-Save</button>
@@ -215,9 +217,51 @@
     </div>
   </div>
 
+  <!-- SLIDE-OUT 3-BAR PROJECT COMPONENTS SIDEBAR DRAWER -->
+  <div id="projectSidebarOverlay" class="project-sidebar-overlay"></div>
+  <aside id="projectSidebar" class="project-sidebar">
+    <div class="sidebar-header" style="padding:1.25rem 1.5rem; border-bottom:1px solid var(--panel-border); display:flex; justify-content:space-between; align-items:center; background:rgba(30, 41, 59, 0.5);">
+      <div style="display:flex; align-items:center; gap:0.6rem;">
+        <span style="font-size:1.4rem;">🏗️</span>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.2rem; font-weight:700; color:var(--text-color); margin:0;">Project Components</h2>
+          <p style="font-size:0.75rem; color:var(--text-muted); margin:0;" id="sidebarProjName">Active Project: Default</p>
+        </div>
+      </div>
+      <button id="closeProjectSidebarBtn" class="btn btn-icon" style="font-size:1.2rem; width:32px; height:32px; padding:0;">✕</button>
+    </div>
+
+    <!-- QUICK SEARCH & ADD BUTTON -->
+    <div style="padding:1rem 1.5rem 0.5rem 1.5rem; display:flex; flex-direction:column; gap:0.6rem;">
+      <input type="text" id="sidebarComponentSearch" class="form-control" placeholder="🔍 Search components in project..." style="font-size:0.85rem; padding:0.5rem 0.75rem;">
+      <button id="sidebarAddMemberBtn" class="btn btn-primary" style="width:100%; padding:0.55rem; font-size:0.85rem; font-weight:600;">
+        ➕ Create New Component
+      </button>
+    </div>
+
+    <!-- DYNAMIC LIST OF COMPONENTS -->
+    <div id="sidebarComponentsList" style="flex:1; overflow-y:auto; padding:0.75rem 1.5rem; display:flex; flex-direction:column; gap:0.75rem;">
+      <!-- Dynamically populated by JS app.js -->
+    </div>
+
+    <!-- SIDEBAR FOOTER -->
+    <div style="padding:1rem 1.5rem; border-top:1px solid var(--panel-border); background:rgba(30, 41, 59, 0.4); display:flex; flex-direction:column; gap:0.5rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:var(--text-muted);">
+        <span>Total Components:</span>
+        <strong id="sidebarMemCount" style="color:var(--text-color);">0</strong>
+      </div>
+      <button id="sidebarPrintBtn" class="btn btn-outline" style="width:100%; padding:0.5rem; font-size:0.8rem;">
+        📄 Print Submittal Package
+      </button>
+    </div>
+  </aside>
+
   <!-- Top Application Header -->
   <header class="app-header">
     <div class="header-brand">
+      <button id="toggleProjectSidebarBtn" class="btn btn-icon" title="Toggle Project Components Sidebar (3-Bar Menu)" style="font-size:1.4rem; padding:0.3rem 0.65rem; margin-right:0.4rem; background:rgba(59, 130, 246, 0.15); color:var(--primary-color); border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px; cursor:pointer;">
+        ☰
+      </button>
       <div class="brand-icon">🏗️</div>
       <div>
         <h1 class="app-title">Structural Engineering Suite</h1>
@@ -277,7 +321,13 @@
       <span class="tab-icon">📐</span> Retaining Wall
     </button>
     <button class="nav-tab" data-module="timber">
-      <span class="tab-icon">🪵</span> Timber Framing
+      <span class="tab-icon">🪵</span> Timber Beam
+    </button>
+    <button class="nav-tab" data-module="truss">
+      <span class="tab-icon">🔺</span> Timber Truss
+    </button>
+    <button class="nav-tab" data-module="braced-wall">
+      <span class="tab-icon">🛡️</span> Braced Wall (Wood &amp; CMU)
     </button>
   </nav>
 
@@ -456,8 +506,15 @@
           <!-- Dynamic Point Loads Container -->
           <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-              <label style="margin:0;">Concentrated Point Loads (Asymmetric Reactions)</label>
+              <label style="margin:0; font-weight:600;">Concentrated Point Loads (Asymmetric Reactions)</label>
               <button id="addPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
+            </div>
+            <!-- Header for Point Load Columns -->
+            <div id="pointLoadsHeader" style="display:flex; gap:0.5rem; font-size:0.75rem; font-weight:600; color:var(--text-muted); padding:0.2rem 0.25rem 0.1rem 0.25rem;">
+              <div style="flex:1;">Dead Load $P_{DL}$ (kips)</div>
+              <div style="flex:1;">Live Load $P_{LL}$ (kips)</div>
+              <div style="flex:1;">Location $a$ (ft from left)</div>
+              <div style="width:34px;"></div>
             </div>
             <div id="pointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
           </div>
@@ -604,13 +661,19 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="ab-grade">Anchor Rod Material Specification</label>
-              <select id="ab-grade" class="form-control">
-                <option value="36">F1554 Grade 36 (Fu = 58 ksi)</option>
-                <option value="55">F1554 Grade 55 (Fu = 75 ksi)</option>
-                <option value="105">F1554 Grade 105 High-Strength (Fu = 125 ksi)</option>
-              </select>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="ab-grade">Anchor Rod Material Specification</label>
+                <select id="ab-grade" class="form-control">
+                  <option value="36">F1554 Grade 36 (Fu = 58 ksi)</option>
+                  <option value="55">F1554 Grade 55 (Fu = 75 ksi)</option>
+                  <option value="105">F1554 Grade 105 High-Strength (Fu = 125 ksi)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="ab-embed">Embedment Depth $h_{\text{ef}}$ (in)</label>
+                <input type="number" id="ab-embed" class="form-control" value="12.0" step="0.5" min="4" max="60" placeholder="e.g. 12.0 in">
+              </div>
             </div>
           </div>
 
@@ -728,9 +791,44 @@
 
         <!-- RETAINING WALL MODULE -->
         <div id="mod-retaining" class="module-content">
-          <h2 class="module-title">Retaining & Basement Wall</h2>
-          <p class="module-desc">Rankine active earth pressure ($K_a$), overturning & sliding factor of safety checks.</p>
+          <h2 class="module-title">Retaining &amp; Braced Basement Wall</h2>
+          <p class="module-desc">Rankine Active ($K_a$) &amp; At-Rest ($K_0$) Soil Pressures, Diaphragm Tie Anchor &amp; FOS Checks (IBC 2021 / ACI 318).</p>
           
+          <div class="form-row">
+            <div class="form-group">
+              <label for="rw-condition">1. Wall Support Condition</label>
+              <select id="rw-condition" class="form-control">
+                <option value="cantilever" selected>📐 Unbraced Cantilever Retaining Wall (Free Top, Active Ka)</option>
+                <option value="braced">🏢 Braced / Restrained Basement Wall (Top Diaphragm Restraint, At-Rest K0)</option>
+              </select>
+            </div>
+            <div class="form-group" id="rw-group-brace-spacing" style="display:none;">
+              <label for="rw-brace-spacing">Top Floor Joist / Brace Anchor Spacing</label>
+              <select id="rw-brace-spacing" class="form-control">
+                <option value="16">16" o.c. Floor Joists</option>
+                <option value="19.2">19.2" o.c. Floor Joists</option>
+                <option value="24" selected>24" o.c. Floor Joists (2 ft Standard)</option>
+                <option value="32">32" o.c. Joists / Braces</option>
+                <option value="48">48" o.c. Wall Knee Braces (4 ft)</option>
+                <option value="72">72" o.c. Column Braces (6 ft)</option>
+                <option value="96">96" o.c. Column Braces (8 ft)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="rw-material">Wall Construction Material</label>
+              <select id="rw-material" class="form-control">
+                <option value="concrete" selected>🧱 Reinforced Cast-in-Place Concrete (150 pcf)</option>
+                <option value="cmu8">🧱 8" Grouted CMU Masonry Block Wall</option>
+                <option value="cmu10">🧱 10" Grouted CMU Masonry Block Wall</option>
+                <option value="cmu12">🧱 12" Grouted CMU Masonry Block Wall</option>
+                <option value="wood">🪵 Pressure-Treated Wood / Timber Post-and-Plank Retaining Wall</option>
+              </select>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="rw-height">Wall Height (H) (ft)</label>
@@ -794,67 +892,35 @@
             </div>
           </div>
 
-          <!-- 2-Step Cascading Wood Member Selection -->
-          <div class="form-group">
-            <label for="tb-family">1. Select Wood Family / Member Mode</label>
-            <select id="tb-family" class="form-control">
-              <option value="builtup">🛠️ Custom Built-Up Header / Beam (# Plies x Width x Depth)</option>
-              <option value="sawn">Dimension Sawn Lumber (2x4 to 4x12)</option>
-              <option value="timber">Heavy Timber Posts & Beams (6x6 to 12x12)</option>
-              <option value="lvl">LVL Engineered Beams (1-3/4" Plies)</option>
-              <option value="glulam">Glulam Architectural Beams</option>
-              <option value="psl">PSL Parallam Heavy Beams</option>
-              <option value="ijoist">TJI Wood I-Joists</option>
-            </select>
-          </div>
-
-          <!-- DYNAMIC BUILT-UP HEADER CONTROLS (# PLIES, PLY WIDTH, DEPTH) -->
-          <div id="group-builtup-controls" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2);">
-            <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">🛠️ Built-Up Header Configuration</div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="tb-plies"># of Plies</label>
-                <select id="tb-plies" class="form-control">
-                  <option value="1">1-Ply</option>
-                  <option value="2" selected>2-Ply (Standard Header)</option>
-                  <option value="3">3-Ply</option>
-                  <option value="4">4-Ply</option>
-                  <option value="5">5-Ply</option>
-                  <option value="6">6-Ply</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="tb-ply-width">Ply Width (in)</label>
-                <select id="tb-ply-width" class="form-control">
-                  <option value="1.5" selected>1.5" (Sawn Lumber 2x)</option>
-                  <option value="1.75">1.75" (LVL Ply)</option>
-                  <option value="2.5">2.5" (Heavy Sawn 3x)</option>
-                  <option value="3.5">3.5" (Post / Timber 4x)</option>
-                </select>
-              </div>
+                    <!-- 2-Step Cascading Wood Member Selection with ALWAYS-VISIBLE Plies -->
+          <div class="form-row">
+            <div class="form-group" style="flex:1.4;">
+              <label for="tb-family">1. Wood Family / Type</label>
+              <select id="tb-family" class="form-control">
+                <option value="sawn" selected>Dimension Sawn Lumber (2x4 to 4x12)</option>
+                <option value="builtup">🛠️ Custom Built-Up Header / Beam (Width x Depth)</option>
+                <option value="lvl">LVL Engineered Beams (1-3/4" Plies)</option>
+                <option value="timber">Heavy Timber Posts & Beams (4x4 to 12x12)</option>
+                <option value="glulam">Glulam Architectural Beams</option>
+                <option value="psl">PSL Parallam Heavy Beams</option>
+                <option value="ijoist">TJI Wood I-Joists</option>
+              </select>
             </div>
-            <div class="form-group">
-              <label for="tb-depth">Member Depth / Height (in)</label>
-              <select id="tb-depth" class="form-control">
-                <option value="3.5">3.5" (2x4 / 4x4)</option>
-                <option value="5.5">5.5" (2x6 / 6x6)</option>
-                <option value="7.25">7.25" (2x8 / LVL 7-1/4)</option>
-                <option value="9.25" selected>9.25" (2x10 / LVL 9-1/4)</option>
-                <option value="9.5">9.5" (LVL / TJI 9-1/2)</option>
-                <option value="11.25">11.25" (2x12 / LVL 11-1/4)</option>
-                <option value="11.875">11.875" (LVL 11-7/8)</option>
-                <option value="14.0">14.0" (LVL / Glulam 14")</option>
-                <option value="16.0">16.0" (LVL / Glulam 16")</option>
-                <option value="18.0">18.0" (LVL / Glulam 18")</option>
-                <option value="20.0">20.0" (Heavy LVL 20")</option>
-                <option value="22.0">22.0" (Heavy LVL 22")</option>
-                <option value="24.0">24.0" (Heavy LVL / Glulam 24")</option>
+            <div class="form-group" style="flex:1;">
+              <label for="tb-plies" style="font-weight:600; color:var(--primary-color);">Number of Plies</label>
+              <select id="tb-plies" class="form-control">
+                <option value="1">1-Ply (Single Member)</option>
+                <option value="2" selected>2-Ply (Standard Header - 2x)</option>
+                <option value="3">3-Ply (Triple Header / Girder - 3x)</option>
+                <option value="4">4-Ply (Quadruple Girder - 4x)</option>
+                <option value="5">5-Ply (Heavy Girder)</option>
+                <option value="6">6-Ply (Heavy Girder)</option>
               </select>
             </div>
           </div>
 
-          <!-- STANDARD SINGLE DROPDOWN (FOR NON-BUILTUP FAMILIES) -->
-          <div class="form-group" id="group-standard-size" style="display:none;">
+          <!-- STANDARD SIZE DROPDOWN (FOR SAWN, LVL, TIMBER, GLULAM, ETC.) -->
+          <div class="form-group" id="group-standard-size">
             <label for="tb-size">2. Select Wood Section</label>
             <select id="tb-size" class="form-control"></select>
           </div>
@@ -868,6 +934,40 @@
             <div class="form-group">
               <label for="tb-custom-depth">Custom Depth d (in)</label>
               <input type="number" id="tb-custom-depth" class="form-control" value="12" step="0.125" min="1">
+            </div>
+          </div>
+
+          <!-- DYNAMIC BUILT-UP HEADER CONTROLS (PLY WIDTH, DEPTH) -->
+          <div id="group-builtup-controls" style="display:none; flex-direction:column; gap:0.75rem; background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2);">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">🛠️ Custom Header Dimensions</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tb-ply-width">Single Ply Thickness (in)</label>
+                <select id="tb-ply-width" class="form-control">
+                  <option value="1.5" selected>1.5" (Sawn Lumber 2x)</option>
+                  <option value="1.75">1.75" (LVL Ply)</option>
+                  <option value="2.5">2.5" (Heavy Sawn 3x)</option>
+                  <option value="3.5">3.5" (Post / Timber 4x)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="tb-depth">Member Depth / Height (in)</label>
+                <select id="tb-depth" class="form-control">
+                  <option value="3.5">3.5" (2x4 / 4x4)</option>
+                  <option value="5.5">5.5" (2x6 / 6x6)</option>
+                  <option value="7.25">7.25" (2x8 / LVL 7-1/4)</option>
+                  <option value="9.25" selected>9.25" (2x10 / LVL 9-1/4)</option>
+                  <option value="9.5">9.5" (LVL / TJI 9-1/2)</option>
+                  <option value="11.25">11.25" (2x12 / LVL 11-1/4)</option>
+                  <option value="11.875">11.875" (LVL 11-7/8)</option>
+                  <option value="14.0">14.0" (LVL / Glulam 14")</option>
+                  <option value="16.0">16.0" (LVL / Glulam 16")</option>
+                  <option value="18.0">18.0" (LVL / Glulam 18")</option>
+                  <option value="20.0">20.0" (Heavy LVL 20")</option>
+                  <option value="22.0">22.0" (Heavy LVL 22")</option>
+                  <option value="24.0">24.0" (Heavy LVL / Glulam 24")</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -960,8 +1060,15 @@
           <!-- Dynamic Point Loads Container for Wood -->
           <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-              <label style="margin:0;">Concentrated Point Loads (Asymmetric Reactions)</label>
+              <label style="margin:0; font-weight:600;">Concentrated Point Loads (Asymmetric Reactions)</label>
               <button id="tbAddPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
+            </div>
+            <!-- Header for Point Load Columns -->
+            <div id="tbPointLoadsHeader" style="display:flex; gap:0.5rem; font-size:0.75rem; font-weight:600; color:var(--text-muted); padding:0.2rem 0.25rem 0.1rem 0.25rem;">
+              <div style="flex:1;">Dead Load $P_{DL}$ (kips)</div>
+              <div style="flex:1;">Live Load $P_{LL}$ (kips)</div>
+              <div style="flex:1;">Location $a$ (ft from left)</div>
+              <div style="width:34px;"></div>
             </div>
             <div id="tbPointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
           </div>
@@ -985,6 +1092,310 @@
               </select>
             </div>
           </div>
+        </div>
+
+        <!-- TIMBER TRUSS MODULE -->
+        <div id="mod-truss" class="module-content hidden">
+          <h2 class="module-title">Timber Roof Truss Engineering</h2>
+          <p class="module-desc">ANSI/TPI 1 & NDS 2018 Design Solver & Vector Member Force Diagram Generator.</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-type">1. Truss Profile Type</label>
+              <select id="truss-type" class="form-control">
+                <option value="howe" selected>🔺 Howe / W-Truss (Standard Fink Pitch)</option>
+                <option value="kingpost">🔺 King Post Truss (Single Center Vertical)</option>
+                <option value="queenpost">🔺 Queen Post Truss (Twin Verticals)</option>
+                <option value="scissor">⛪ Scissor Vaulted Roof Truss</option>
+                <option value="monopitch">📐 Monopitch / Shed Roof Truss</option>
+                <option value="attic">🏠 Attic Storage Room Truss</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="truss-species">2. Timber Species & Grade</label>
+              <select id="truss-species" class="form-control">
+                <option value="SYP No. 1" selected>Southern Pine (SYP) No. 1</option>
+                <option value="SYP Select Structural">Southern Pine (SYP) Select Struct</option>
+                <option value="SYP No. 2">Southern Pine (SYP) No. 2</option>
+                <option value="DF-L No. 1">Douglas Fir-Larch (DF-L) No. 1</option>
+                <option value="DF-L Select Structural">Douglas Fir-Larch Select Struct</option>
+                <option value="SPF No. 1/No. 2">Spruce-Pine-Fir (SPF) No. 1/No. 2</option>
+                <option value="Western Red Cedar (WRC) Select Struct">Western Red Cedar (WRC) Select Struct</option>
+                <option value="Western Red Cedar (WRC) No. 1/No. 2">Western Red Cedar (WRC) No. 1/No. 2</option>
+                <option value="Alaska Yellow Cedar No. 1">Alaska Yellow Cedar No. 1</option>
+                <option value="Northern White Cedar">Northern White Cedar</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-member-size">Lumber Member Size</label>
+              <select id="truss-member-size" class="form-control">
+                <option value="2x4">2x4 (1.5" x 3.5")</option>
+                <option value="2x6" selected>2x6 (1.5" x 5.5")</option>
+                <option value="2x8">2x8 (1.5" x 7.25")</option>
+                <option value="2x10">2x10 (1.5" x 9.25")</option>
+                <option value="2x12">2x12 (1.5" x 11.25")</option>
+                <option value="4x4">4x4 (3.5" x 3.5" Timber)</option>
+                <option value="4x6">4x6 (3.5" x 5.5" Timber)</option>
+                <option value="4x8">4x8 (3.5" x 7.25" Timber)</option>
+                <option value="4x10">4x10 (3.5" x 9.25" Timber)</option>
+                <option value="4x12">4x12 (3.5" x 11.25" Timber)</option>
+                <option value="6x6">6x6 (5.5" x 5.5" Heavy Timber)</option>
+                <option value="6x8">6x8 (5.5" x 7.5" Heavy Timber)</option>
+                <option value="6x10">6x10 (5.5" x 9.5" Heavy Timber)</option>
+                <option value="6x12">6x12 (5.5" x 11.5" Heavy Timber)</option>
+                <option value="8x8">8x8 (7.5" x 7.5" Heavy Timber)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="truss-span">Truss Span L (ft)</label>
+              <input type="number" id="truss-span" class="form-control" value="30.0" step="0.5" min="1" max="100">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-pitch">Roof Pitch (X:12)</label>
+              <select id="truss-pitch" class="form-control">
+                <option value="3">3:12 Pitch</option>
+                <option value="4">4:12 Pitch</option>
+                <option value="5">5:12 Pitch</option>
+                <option value="6" selected>6:12 Pitch</option>
+                <option value="7">7:12 Pitch</option>
+                <option value="8">8:12 Pitch</option>
+                <option value="9">9:12 Pitch</option>
+                <option value="10">10:12 Pitch</option>
+                <option value="12">12:12 Pitch</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="truss-heel-height">Heel Height / Raised Heel (in)</label>
+              <input type="number" id="truss-heel-height" class="form-control" value="6.0" step="0.5" min="4" max="36" placeholder="e.g. 6.0 in">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-overhang">Overhang Eave Length (in)</label>
+              <input type="number" id="truss-overhang" class="form-control" value="12.0" step="1" min="0" max="48">
+            </div>
+            <div class="form-group">
+              <label for="truss-spacing">Truss Spacing (o.c.)</label>
+              <select id="truss-spacing" class="form-control">
+                <option value="12">12" o.c. (1 ft Spacing)</option>
+                <option value="16">16" o.c. (1.33 ft)</option>
+                <option value="19.2">19.2" o.c. (1.6 ft)</option>
+                <option value="24" selected>24" o.c. (2 ft Standard)</option>
+                <option value="32">32" o.c. (2.67 ft)</option>
+                <option value="36">36" o.c. (3 ft Spacing)</option>
+                <option value="48">48" o.c. (4 ft Pole Barn / Heavy Framing)</option>
+                <option value="60">60" o.c. (5 ft Heavy Timber)</option>
+                <option value="72">72" o.c. (6 ft Heavy Timber)</option>
+                <option value="84">84" o.c. (7 ft Heavy Timber)</option>
+                <option value="96">96" o.c. (8 ft Commercial / Heavy Timber)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- TRUSS LOADING SPECIFICATIONS -->
+          <div style="background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">⚖️ Top &amp; Bottom Chord Loading (psf)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="truss-tc-ll">Top Chord Live Load (Snow/Roof) (psf)</label>
+                <input type="number" id="truss-tc-ll" class="form-control" value="20.0" step="5" min="0">
+              </div>
+              <div class="form-group">
+                <label for="truss-tc-dl">Top Chord Dead Load (Shingles/Sheathing) (psf)</label>
+                <input type="number" id="truss-tc-dl" class="form-control" value="10.0" step="1" min="0">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="truss-bc-ll">Bottom Chord Live Load (Attic Storage) (psf)</label>
+                <input type="number" id="truss-bc-ll" class="form-control" value="0.0" step="5" min="0">
+              </div>
+              <div class="form-group">
+                <label for="truss-bc-dl">Bottom Chord Dead Load (Ceiling/Drywall) (psf)</label>
+                <input type="number" id="truss-bc-dl" class="form-control" value="5.0" step="1" min="0">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ABOVE-GRADE BRACED WALL MODULE (WOOD & CMU BLOCK) -->
+        <div id="mod-braced-wall" class="module-content">
+          <h2 class="module-title">Above-Grade &amp; Basement Braced Wall</h2>
+          <p class="module-desc">Wood Stud Framing Shear Walls (IRC R602.10 / NDS) &amp; Reinforced CMU Masonry Walls (TMS 402 / IBC 2021).</p>
+          
+          <!-- 1. Support & Restraint Condition -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-top-restraint">1. Top Restraint Support Condition</label>
+              <select id="bw-top-restraint" class="form-control">
+                <option value="braced" selected>🏢 Braced at Top (Restrained by Roof/Floor Diaphragm)</option>
+                <option value="unbraced">📐 Unbraced at Top (Free Cantilever / Parapet Wall)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bw-wall-type">2. Wall Construction Material</label>
+              <select id="bw-wall-type" class="form-control">
+                <option value="wood" selected>🪵 Wood Stud Framing Shear Wall (IRC R602.10 / NDS)</option>
+                <option value="cmu">🧱 Reinforced Concrete Block CMU Wall (TMS 402 / IBC 2109)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 2. Geometry & Openings -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-total-length">Total Wall Line Length L (ft)</label>
+              <input type="number" id="bw-total-length" class="form-control" value="24.0" step="0.5" min="4" max="150" placeholder="e.g. 24.0 ft">
+            </div>
+            <div class="form-group">
+              <label for="bw-wall-height">Wall Height H (ft)</label>
+              <input type="number" id="bw-wall-height" class="form-control" value="9.0" step="0.5" min="6" max="24">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-provided-length">Total Provided Braced Wall Segment Length (ft)</label>
+              <input type="number" id="bw-provided-length" class="form-control" value="12.0" step="0.5" min="2" max="100" placeholder="e.g. 12.0 ft">
+            </div>
+            <div class="form-group">
+              <label for="bw-num-panels"># of Braced Wall Segments/Panels</label>
+              <input type="number" id="bw-num-panels" class="form-control" value="2" step="1" min="1" max="10">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-openings-pct">Wall Window &amp; Door Openings Area (%)</label>
+              <select id="bw-openings-pct" class="form-control">
+                <option value="0">0% (Solid Wall - No Openings)</option>
+                <option value="10">10% (Small Punch Windows)</option>
+                <option value="15" selected>15% (Standard Doors &amp; Windows)</option>
+                <option value="25">25% (Large Windows &amp; Patio Doors)</option>
+                <option value="35">35% (High Window Ratio / Storefront)</option>
+                <option value="50">50% (Max Perforated Shear Wall Limit)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bw-trib-width">Tributary Building Width (ft)</label>
+              <input type="number" id="bw-trib-width" class="form-control" value="28.0" step="1" min="10" max="100" placeholder="e.g. 28.0 ft">
+            </div>
+          </div>
+
+          <!-- 3. Wind Load Specification (ASCE 7 & On-Center Load) -->
+          <div style="background:rgba(14, 165, 233, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(14, 165, 233, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:#0ea5e9;">🌪️ ASCE 7 Wind Speed &amp; On-Center Pressure Input</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-wind-speed">Basic Wind Speed V (mph)</label>
+                <select id="bw-wind-speed" class="form-control">
+                  <option value="100">100 mph (Low Wind)</option>
+                  <option value="115" selected>115 mph (Standard ASCE 7 Risk Cat II)</option>
+                  <option value="130">130 mph (Coastal Wind)</option>
+                  <option value="140">140 mph (High Wind Region)</option>
+                  <option value="150">150 mph (HVHZ Florida/Gulf Coast)</option>
+                  <option value="170">170 mph (Hurricane Zone)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-wind-psf">Direct Out-of-Plane Wind Pressure (psf)</label>
+                <input type="number" id="bw-wind-psf" class="form-control" value="20.0" step="1" min="5" max="100">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-exposure">Wind Exposure Category</label>
+                <select id="bw-exposure" class="form-control">
+                  <option value="B">Exposure B (Suburban / Wooded)</option>
+                  <option value="C" selected>Exposure C (Open Flat Terrain / Fields)</option>
+                  <option value="D">Exposure D (Coastal / Open Water)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-dead-load">Roof / Floor Gravity Dead Load (psf)</label>
+                <input type="number" id="bw-dead-load" class="form-control" value="15.0" step="1" min="5" max="60">
+              </div>
+            </div>
+          </div>
+
+          <!-- WOOD SPECIFIC CONTROLS -->
+          <div id="bw-group-wood" style="background:rgba(217, 119, 6, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(217, 119, 6, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:#d97706;">🪵 Wood Stud Framing &amp; Sheathing Specification (SDPWS / NDS)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-stud-size">Wall Stud Member Size</label>
+                <select id="bw-stud-size" class="form-control">
+                  <option value="2x4">2x4 Wood Studs (3.5" Depth)</option>
+                  <option value="2x6" selected>2x6 Wood Studs (5.5" Depth)</option>
+                  <option value="2x8">2x8 Wood Studs (7.25" Depth)</option>
+                  <option value="3x6">3x6 Heavy Timber Studs</option>
+                  <option value="4x6">4x6 Heavy Timber Studs</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-stud-spacing">Stud On-Center Spacing (o.c.)</label>
+                <select id="bw-stud-spacing" class="form-control">
+                  <option value="12">12" o.c. Spacing</option>
+                  <option value="16" selected>16" o.c. Spacing</option>
+                  <option value="19.2">19.2" o.c. Spacing</option>
+                  <option value="24">24" o.c. Spacing</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-sheathing">Sheathing Material / Bracing Method</label>
+                <select id="bw-sheathing" class="form-control">
+                  <option value="osb_716" selected>WSP 7/16" OSB Sheathing</option>
+                  <option value="ply_1532">WSP 15/32" Structural Plywood</option>
+                  <option value="gypsum">Gypsum Board (1/2" Sheetrock GB)</option>
+                  <option value="letin">1x4 Let-In Diagonal Brace (LIB)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-nail-spacing">Nail Edge Spacing (8d Common)</label>
+                <select id="bw-nail-spacing" class="form-control">
+                  <option value="6" selected>6" o.c. Edge / 12" Field (Standard - 260 plf)</option>
+                  <option value="4">4" o.c. Edge / 12" Field (High Shear - 380 plf)</option>
+                  <option value="3">3" o.c. Edge / 12" Field (High Shear - 490 plf)</option>
+                  <option value="2">2" o.c. Edge / 12" Field (Max Shear - 640 plf)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- CMU MASONRY SPECIFIC CONTROLS -->
+          <div id="bw-group-cmu" style="display:none; background:rgba(100, 116, 139, 0.1); padding:0.85rem; border-radius:8px; border:1px solid rgba(100, 116, 139, 0.3); flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:#94a3b8;">🧱 CMU Block &amp; Rebar Reinforcement (TMS 402)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-cmu-size">CMU Block Width</label>
+                <select id="bw-cmu-size" class="form-control">
+                  <option value="8_cmu" selected>8" CMU Block (7.625" actual)</option>
+                  <option value="10_cmu">10" CMU Block (9.625" actual)</option>
+                  <option value="12_cmu">12" CMU Block (11.625" actual)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-cmu-grout">Grout Cell Spacing</label>
+                <select id="bw-cmu-grout" class="form-control">
+                  <option value="solid">Solid Grouted (All Cores Filled)</option>
+                  <option value="16">16" o.c. Grouted Cores</option>
+                  <option value="24">24" o.c. Grouted Cores</option>
+                  <option value="32" selected>32" o.c. Grouted Cores</option>
+                  <option value="48">48" o.c. Grouted Cores</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>

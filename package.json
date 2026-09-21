@@ -46,7 +46,8 @@
     ],
     "win": {
       "target": ["nsis", "portable", "dir"],
-      "icon": "icons/icon-512.png"
+      "icon": "icons/icon-512.png",
+      "forceCodeSigning": false
     },
     "nsis": {
       "oneClick": true,
