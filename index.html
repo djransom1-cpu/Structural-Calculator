@@ -141,6 +141,40 @@
     </div>
   </div>
 
+  <!-- LIVE LINK PICKER: send a reaction/axial load to another member -->
+  <div id="linkPickerModal" class="dashboard-overlay hidden">
+    <div class="dashboard-container" style="max-width:520px;">
+      <div class="dashboard-header" style="padding-bottom:0.75rem; border-bottom:1px solid var(--panel-border);">
+        <div class="brand-icon" style="background:rgba(16, 185, 129, 0.15); color:#10b981;">🔗</div>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.3rem; font-weight:700; color:var(--text-color);">Link Load To...</h2>
+          <p id="linkPickerSummary" style="color:var(--text-muted); font-size:0.85rem;"></p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.85rem; padding-top:1rem;">
+        <div class="form-group">
+          <label for="linkPickerTarget">Send this load to</label>
+          <select id="linkPickerTarget" class="form-control"></select>
+        </div>
+
+        <div class="form-group" id="linkPickerPositionGroup" style="display:none;">
+          <label for="linkPickerPosition">Position along target beam, from its left support (ft)</label>
+          <input type="number" id="linkPickerPosition" class="form-control" value="0" step="0.5" min="0">
+        </div>
+
+        <div style="font-size:0.75rem; color:var(--text-muted); background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.2); border-radius:8px; padding:0.6rem 0.75rem;">
+          This stays live: whenever you revisit or recalculate the target member, it pulls the current value from this source — no need to re-link after you change the source's inputs.
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+          <button id="linkPickerConfirmBtn" class="btn btn-primary" style="flex:2; padding:0.7rem; font-weight:700; background:#10b981; border-color:#10b981;">Create Link</button>
+          <button id="linkPickerCancelBtn" class="btn btn-outline" style="flex:1; padding:0.7rem;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- PROJECT MANAGER STARTING LANDING DASHBOARD -->
   <div id="projectDashboard" class="dashboard-overlay">
     <div class="dashboard-container">

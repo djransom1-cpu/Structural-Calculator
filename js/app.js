@@ -60,6 +60,7 @@ class StructuralApp {
     this.setupEventListeners();
     this.setupSubnavTabs();
     this.setupWindCalculator();
+    this.setupLinkPicker();
     this.setupPrintModal();
     this.renderer = new StructuralDiagramRenderer('analysisCanvas');
 
@@ -875,9 +876,9 @@ class StructuralApp {
       this.deleteActiveMember();
     });
 
-    document.getElementById('transferR1Btn')?.addEventListener('click', () => this.transferReactionToColumn('R1'));
-    document.getElementById('transferR2Btn')?.addEventListener('click', () => this.transferReactionToColumn('R2'));
-    document.getElementById('transferColumnBtn')?.addEventListener('click', () => this.transferColumnLoadToFooting());
+    document.getElementById('transferR1Btn')?.addEventListener('click', () => this.openReactionLinkPicker('R1'));
+    document.getElementById('transferR2Btn')?.addEventListener('click', () => this.openReactionLinkPicker('R2'));
+    document.getElementById('transferColumnBtn')?.addEventListener('click', () => this.openAxialLinkPicker());
   }
 
   addNewMemberToProject(customName = null, customModule = null, initialData = {}) {
@@ -932,10 +933,21 @@ class StructuralApp {
     document.getElementById('memberNameInput').value = mem.name;
 
     if (mem.data) {
+      this.resolveIncomingLinksForMember(mem);
       this.applyMemberDataToInputs(mem.data);
     }
 
+    // applyMemberDataToInputs only overwrites these when the member's data
+    // actually has them, so a member with none needs an explicit reset --
+    // otherwise it would keep showing whichever member's point loads were
+    // active before switching.
+    this.pointLoads = (mem.data && mem.data.pointLoads) || [{ P_dl: 1.5, P_ll: 3.0, pos_ft: 6.0 }];
+    this.tbPointLoads = (mem.data && mem.data.tbPointLoads) || [{ P_dl: 0.5, P_ll: 1.0, pos_ft: 5.0 }];
+    this.renderPointLoadsUI();
+    this.renderTimberPointLoadsUI();
+
     this.switchModule(mem.module || 'steel-beam');
+    this.applyLinkedFieldIndicators(mem);
     this.renderMemberSelectorUI();
     this.recalculate();
   }
@@ -960,55 +972,279 @@ class StructuralApp {
     this.renderSidebarComponentsListUI();
   }
 
-  transferReactionToColumn(supportPoint) {
+  // ============================================================
+  // LIVE LINKING SYSTEM
+  //
+  // A "link" makes a target member's field(s) pull their value from a
+  // source member's last-computed result, instead of a typed-in number.
+  // It's resolved (re-pulled fresh) every time the target member is
+  // switched to or recalculated -- not pushed instantly on every source
+  // edit -- so editing an upstream beam doesn't need a manual re-copy,
+  // but also doesn't require a full cross-project recalculation engine.
+  //
+  // Scalar roles (one link drives a fixed set of DOM fields):
+  //   'column-axial' -> sc-axial, sc-wind-uplift
+  //   'footing-load' -> cf-pdead, cf-plive, cf-puplift
+  // Point-load role lives per-entry on the beam's point load array
+  // (pointLoads / tbPointLoads), since a beam can have several.
+  // ============================================================
+
+  roleForModule(module) {
+    if (module === 'steel-column') return 'column-axial';
+    if (module === 'footing') return 'footing-load';
+    if (module === 'steel-beam' || module === 'timber') return 'point-load';
+    return null;
+  }
+
+  linkFieldIdsForRole(role) {
+    if (role === 'column-axial') return ['sc-axial', 'sc-wind-uplift'];
+    if (role === 'footing-load') return ['cf-pdead', 'cf-plive', 'cf-puplift'];
+    return [];
+  }
+
+  // Reads a uniform { dl, ll, uplift } (kips) out of a source member's
+  // last-computed result, regardless of whether that source is a beam
+  // reaction (R1/R2/R3) or a column's combined axial load.
+  getSourceValue(sourceMem, sourceKey) {
+    const res = sourceMem && sourceMem.lastResult;
+    if (!res) return null;
+    if (sourceKey === 'axial') {
+      if (res.P_applied === undefined) return null;
+      return { dl: res.P_applied || 0, ll: 0, uplift: res.P_net_tension_kips || 0 };
+    }
+    if (res.reactions && res.reactions[sourceKey]) {
+      const r = res.reactions[sourceKey];
+      return { dl: r.dl || 0, ll: r.ll || 0, uplift: r.uplift || 0 };
+    }
+    return null;
+  }
+
+  // Pulls fresh values for every incoming link on `mem` (scalar roles and
+  // per-entry point-load links alike) and writes them into mem.data, so
+  // they're correct whether or not mem is the currently active/visible one.
+  resolveIncomingLinksForMember(mem) {
+    const proj = this.projects[this.activeProjectId];
+    if (!proj || !mem || !mem.data) return;
+
+    (mem.data.incomingLinks || []).forEach(link => {
+      const sourceMem = proj.members[link.sourceMemberId];
+      const val = sourceMem ? this.getSourceValue(sourceMem, link.sourceKey) : null;
+      if (!val) return;
+
+      if (link.role === 'column-axial') {
+        mem.data.sc_axial = val.dl.toFixed(1);
+        mem.data.sc_wind_uplift = val.uplift.toFixed(1);
+      } else if (link.role === 'footing-load') {
+        mem.data.cf_pdead = val.dl.toFixed(1);
+        mem.data.cf_plive = val.ll.toFixed(1);
+        mem.data.cf_puplift = val.uplift.toFixed(1);
+      }
+    });
+
+    ['pointLoads', 'tbPointLoads'].forEach(key => {
+      const arr = mem.data[key];
+      if (!Array.isArray(arr)) return;
+      arr.forEach(pt => {
+        if (!pt.linkedFrom) return;
+        const sourceMem = proj.members[pt.linkedFrom.sourceMemberId];
+        const val = sourceMem ? this.getSourceValue(sourceMem, pt.linkedFrom.sourceKey) : null;
+        if (!val) return;
+        pt.P_dl = +val.dl.toFixed(2);
+        pt.P_ll = +val.ll.toFixed(2);
+      });
+    });
+  }
+
+  openReactionLinkPicker(supportPoint) {
     if (!this.lastResult || !this.lastResult.reactions) {
       alert("⚠️ Please run a beam calculation first to get reaction forces.");
       return;
     }
-
-    const r = this.lastResult.reactions;
-    const rxn = r[supportPoint];
+    const rxn = this.lastResult.reactions[supportPoint];
     if (!rxn) return;
-
-    const beamMemName = this.projects[this.activeProjectId]?.members[this.activeMemberId]?.name || "Beam";
-    const colMemName = `Column for ${beamMemName} (${supportPoint})`;
-    const axialLoadKips = rxn.service.toFixed(1);
-    const upliftKips = rxn.uplift ? rxn.uplift.toFixed(1) : 0;
-
-    const isSteel = this.currentModule === 'steel-beam';
-    const targetModule = isSteel ? 'steel-column' : 'timber';
-
-    this.addNewMemberToProject(colMemName, targetModule, { sc_axial: axialLoadKips, sc_wind_uplift: upliftKips });
-
-    document.getElementById('sc-axial').value = axialLoadKips;
-    if (document.getElementById('sc-wind-uplift')) {
-      document.getElementById('sc-wind-uplift').value = upliftKips;
-    }
-    alert(`⚡ Linked Reaction ${supportPoint} (${axialLoadKips} kips gravity | ${upliftKips} kips wind uplift) to new Column "${colMemName}"!`);
-    this.recalculate();
+    this.openLinkPicker(supportPoint, `Reaction ${supportPoint}`, { dl: rxn.dl || 0, ll: rxn.ll || 0, uplift: rxn.uplift || 0 });
   }
 
-  transferColumnLoadToFooting() {
+  openAxialLinkPicker() {
     if (!this.lastResult || this.lastResult.P_applied === undefined) {
       alert("⚠️ Please run a Steel Column calculation first to get its base reaction.");
       return;
     }
-
     const res = this.lastResult;
-    const colMemName = this.projects[this.activeProjectId]?.members[this.activeMemberId]?.name || "Column";
-    const footingMemName = `Footing for ${colMemName}`;
-    const deadLoadKips = res.P_applied.toFixed(1);
-    const upliftKips = res.P_net_tension_kips ? res.P_net_tension_kips.toFixed(1) : 0;
+    this.openLinkPicker('axial', 'Column Axial Load', { dl: res.P_applied || 0, ll: 0, uplift: res.P_net_tension_kips || 0 });
+  }
 
-    this.addNewMemberToProject(footingMemName, 'footing', { cf_pdead: deadLoadKips, cf_plive: '0', cf_puplift: upliftKips });
+  openLinkPicker(sourceKey, sourceLabel, vals) {
+    if (!this.activeMemberId) return;
+    this.pendingLink = { sourceMemberId: this.activeMemberId, sourceKey };
 
-    document.getElementById('cf-pdead').value = deadLoadKips;
-    document.getElementById('cf-plive').value = '0';
-    if (document.getElementById('cf-puplift')) {
-      document.getElementById('cf-puplift').value = upliftKips;
+    const parts = [`${vals.dl.toFixed(1)}k dead`];
+    if (vals.ll) parts.push(`${vals.ll.toFixed(1)}k live`);
+    if (vals.uplift) parts.push(`${vals.uplift.toFixed(1)}k wind uplift`);
+    document.getElementById('linkPickerSummary').textContent = `${sourceLabel}: ${parts.join(' | ')}`;
+
+    const select = document.getElementById('linkPickerTarget');
+    select.innerHTML = '';
+
+    const newGroup = document.createElement('optgroup');
+    newGroup.label = 'Create New';
+    [
+      { value: 'new:steel-column', text: '+ New Steel Column' },
+      { value: 'new:footing', text: '+ New Footing' }
+    ].forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.text;
+      newGroup.appendChild(opt);
+    });
+    select.appendChild(newGroup);
+
+    const proj = this.projects[this.activeProjectId];
+    const existingGroup = document.createElement('optgroup');
+    existingGroup.label = 'Existing Members';
+    let hasExisting = false;
+    Object.values(proj.members).forEach(m => {
+      if (m.id === this.activeMemberId) return;
+      if (!this.roleForModule(m.module)) return;
+      hasExisting = true;
+      const opt = document.createElement('option');
+      opt.value = `existing:${m.id}`;
+      opt.textContent = `${m.name} (${m.module.toUpperCase()})`;
+      existingGroup.appendChild(opt);
+    });
+    if (hasExisting) select.appendChild(existingGroup);
+
+    this.updateLinkPickerPositionVisibility();
+    document.getElementById('linkPickerModal').classList.remove('hidden');
+  }
+
+  updateLinkPickerPositionVisibility() {
+    const select = document.getElementById('linkPickerTarget');
+    const val = select.value;
+    let role = null;
+    if (val.startsWith('new:')) {
+      role = val === 'new:steel-column' ? 'column-axial' : 'footing-load';
+    } else if (val.startsWith('existing:')) {
+      const proj = this.projects[this.activeProjectId];
+      const mem = proj.members[val.slice('existing:'.length)];
+      role = mem ? this.roleForModule(mem.module) : null;
     }
-    alert(`⚡ Linked Column Axial Load (${deadLoadKips} kips gravity | ${upliftKips} kips wind uplift) to new Footing "${footingMemName}"! The column module combines dead + live into one axial load, so it landed in the footing's Dead Load field — split it out manually if you need the D/L breakdown for the footing check.`);
+    document.getElementById('linkPickerPositionGroup').style.display = role === 'point-load' ? 'flex' : 'none';
+  }
+
+  confirmLinkPicker() {
+    const pending = this.pendingLink;
+    if (!pending) return;
+    const val = document.getElementById('linkPickerTarget').value;
+    const proj = this.projects[this.activeProjectId];
+    if (!proj) return;
+
+    let targetMem;
+    let role;
+
+    if (val.startsWith('new:')) {
+      const kind = val.slice('new:'.length); // 'steel-column' | 'footing'
+      role = kind === 'steel-column' ? 'column-axial' : 'footing-load';
+      const sourceMemName = proj.members[pending.sourceMemberId]?.name || 'Source';
+      const name = kind === 'steel-column' ? `Column for ${sourceMemName}` : `Footing for ${sourceMemName}`;
+      const memId = 'mem_' + Date.now();
+      proj.members[memId] = { id: memId, name, module: kind, data: {} };
+      targetMem = proj.members[memId];
+    } else if (val.startsWith('existing:')) {
+      targetMem = proj.members[val.slice('existing:'.length)];
+      role = targetMem ? this.roleForModule(targetMem.module) : null;
+    }
+
+    if (!targetMem || !role) {
+      document.getElementById('linkPickerModal').classList.add('hidden');
+      this.pendingLink = null;
+      return;
+    }
+
+    if (!targetMem.data) targetMem.data = {};
+
+    if (role === 'point-load') {
+      const positionFt = parseFloat(document.getElementById('linkPickerPosition').value) || 0;
+      const arrKey = targetMem.module === 'timber' ? 'tbPointLoads' : 'pointLoads';
+      if (!Array.isArray(targetMem.data[arrKey])) targetMem.data[arrKey] = [];
+      targetMem.data[arrKey].push({
+        P_dl: 0, P_ll: 0, pos_ft: positionFt,
+        linkedFrom: { sourceMemberId: pending.sourceMemberId, sourceKey: pending.sourceKey }
+      });
+    } else {
+      if (!Array.isArray(targetMem.data.incomingLinks)) targetMem.data.incomingLinks = [];
+      targetMem.data.incomingLinks = targetMem.data.incomingLinks.filter(l => l.role !== role);
+      targetMem.data.incomingLinks.push({ role, sourceMemberId: pending.sourceMemberId, sourceKey: pending.sourceKey });
+    }
+
+    this.resolveIncomingLinksForMember(targetMem);
+
+    document.getElementById('linkPickerModal').classList.add('hidden');
+    this.pendingLink = null;
+
+    this.renderMemberSelectorUI();
+    this.saveProjectsToStorage();
+    this.switchMember(targetMem.id);
+  }
+
+  setupLinkPicker() {
+    const modal = document.getElementById('linkPickerModal');
+    document.getElementById('linkPickerTarget')?.addEventListener('change', () => this.updateLinkPickerPositionVisibility());
+    document.getElementById('linkPickerConfirmBtn')?.addEventListener('click', () => this.confirmLinkPicker());
+    document.getElementById('linkPickerCancelBtn')?.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      this.pendingLink = null;
+    });
+  }
+
+  // Locks the DOM fields for any active scalar link and shows an unlink
+  // control, so it's visually clear a value is driven rather than typed.
+  applyLinkedFieldIndicators(mem) {
+    document.querySelectorAll('.linked-field-badge').forEach(el => el.remove());
+    document.querySelectorAll('.linked-field-input').forEach(el => {
+      el.classList.remove('linked-field-input');
+      el.readOnly = false;
+      el.style.borderColor = '';
+      el.style.background = '';
+    });
+
+    const links = (mem && mem.data && mem.data.incomingLinks) || [];
+    links.forEach(link => {
+      this.linkFieldIdsForRole(link.role).forEach(fid => {
+        const input = document.getElementById(fid);
+        if (!input) return;
+        input.readOnly = true;
+        input.classList.add('linked-field-input');
+        input.style.borderColor = '#10b981';
+        input.style.background = 'rgba(16, 185, 129, 0.08)';
+
+        const badge = document.createElement('button');
+        badge.type = 'button';
+        badge.className = 'linked-field-badge';
+        badge.textContent = '🔗 Linked — click to unlink';
+        badge.style.cssText = 'font-size:0.7rem; color:#10b981; background:none; border:none; cursor:pointer; padding:0.15rem 0; display:block; text-decoration:underline;';
+        badge.addEventListener('click', () => this.unlinkRole(link.role));
+        input.insertAdjacentElement('afterend', badge);
+      });
+    });
+  }
+
+  unlinkRole(role) {
+    const proj = this.projects[this.activeProjectId];
+    const mem = proj?.members[this.activeMemberId];
+    if (!mem || !mem.data || !mem.data.incomingLinks) return;
+    mem.data.incomingLinks = mem.data.incomingLinks.filter(l => l.role !== role);
+    this.applyLinkedFieldIndicators(mem);
+    this.autoSaveActiveProject();
+  }
+
+  unlinkPointLoad(arrayKey, idx) {
+    const arr = this[arrayKey];
+    if (!arr || !arr[idx]) return;
+    delete arr[idx].linkedFrom;
+    if (arrayKey === 'pointLoads') this.renderPointLoadsUI(); else this.renderTimberPointLoadsUI();
     this.recalculate();
+    this.autoSaveActiveProject();
   }
 
   loadProjectState(projId) {
@@ -1064,6 +1300,8 @@ class StructuralApp {
     if (data.ab_grade) document.getElementById('ab-grade').value = data.ab_grade;
     if (data.ab_embed) document.getElementById('ab-embed').value = data.ab_embed;
 
+    if (data.cf_pdead) document.getElementById('cf-pdead').value = data.cf_pdead;
+    if (data.cf_plive) document.getElementById('cf-plive').value = data.cf_plive;
     if (data.cf_width) document.getElementById('cf-width').value = data.cf_width;
     if (data.cf_length) document.getElementById('cf-length').value = data.cf_length;
     if (data.cf_thick) document.getElementById('cf-thick').value = data.cf_thick;
@@ -1209,6 +1447,11 @@ class StructuralApp {
     };
 
     if (this.activeMemberId && proj.members[this.activeMemberId]) {
+      // incomingLinks isn't backed by a DOM field, so it has to be carried
+      // forward explicitly or this rebuild silently drops it.
+      const existingLinks = proj.members[this.activeMemberId].data?.incomingLinks;
+      if (existingLinks) data.incomingLinks = existingLinks;
+
       proj.members[this.activeMemberId].data = data;
       proj.members[this.activeMemberId].module = this.currentModule;
     }
@@ -1346,6 +1589,13 @@ class StructuralApp {
     }
   }
 
+  linkedFromLabel(linkedFrom) {
+    const proj = this.projects[this.activeProjectId];
+    const sourceMem = proj && proj.members[linkedFrom.sourceMemberId];
+    const sourceName = sourceMem ? sourceMem.name : 'a deleted member';
+    return `🔗 from ${sourceName} (${linkedFrom.sourceKey})`;
+  }
+
   renderPointLoadsUI() {
     const container = document.getElementById('pointLoadsList');
     if (!container) return;
@@ -1355,12 +1605,13 @@ class StructuralApp {
       const row = document.createElement('div');
       row.className = 'form-row';
       row.style.alignItems = 'center';
+      const linked = !!pt.linkedFrom;
       row.innerHTML = `
         <div style="flex:1;">
-          <input type="number" class="form-control pt-pdl" data-idx="${idx}" value="${pt.P_dl}" placeholder="P_DL (kips)" title="Dead Load P_DL (kips, where 1 kip = 1,000 lbs)" aria-label="Dead Load P_DL in kips" step="0.5" min="0">
+          <input type="number" class="form-control pt-pdl" data-idx="${idx}" value="${pt.P_dl}" placeholder="P_DL (kips)" title="Dead Load P_DL (kips, where 1 kip = 1,000 lbs)" aria-label="Dead Load P_DL in kips" step="0.5" min="0" ${linked ? 'readonly style="border-color:#10b981; background:rgba(16,185,129,0.08);"' : ''}>
         </div>
         <div style="flex:1;">
-          <input type="number" class="form-control pt-pll" data-idx="${idx}" value="${pt.P_ll}" placeholder="P_LL (kips)" title="Live Load P_LL (kips, where 1 kip = 1,000 lbs)" aria-label="Live Load P_LL in kips" step="0.5" min="0">
+          <input type="number" class="form-control pt-pll" data-idx="${idx}" value="${pt.P_ll}" placeholder="P_LL (kips)" title="Live Load P_LL (kips, where 1 kip = 1,000 lbs)" aria-label="Live Load P_LL in kips" step="0.5" min="0" ${linked ? 'readonly style="border-color:#10b981; background:rgba(16,185,129,0.08);"' : ''}>
         </div>
         <div style="flex:1;">
           <input type="number" class="form-control pt-pos" data-idx="${idx}" value="${pt.pos_ft}" placeholder="Location a (ft)" title="Location / distance from left support (ft)" aria-label="Location from left support in feet" step="0.5" min="0">
@@ -1368,6 +1619,10 @@ class StructuralApp {
         <div>
           <button class="btn btn-outline remove-pt-btn" data-idx="${idx}" title="Remove this point load" style="padding:0.4rem 0.6rem; color:var(--fail-color); border-color:var(--fail-color);">&times;</button>
         </div>
+        ${linked ? `<div style="flex-basis:100%; font-size:0.7rem; color:#10b981; display:flex; justify-content:space-between; align-items:center;">
+          <span>${this.linkedFromLabel(pt.linkedFrom)}</span>
+          <button type="button" class="unlink-pt-btn" data-idx="${idx}" style="background:none; border:none; color:#10b981; text-decoration:underline; cursor:pointer; font-size:0.7rem;">unlink</button>
+        </div>` : ''}
       `;
       container.appendChild(row);
     });
@@ -1406,6 +1661,13 @@ class StructuralApp {
         }
       });
     });
+
+    container.querySelectorAll('.unlink-pt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.unlinkPointLoad('pointLoads', idx);
+      });
+    });
   }
 
   renderTimberPointLoadsUI() {
@@ -1417,12 +1679,13 @@ class StructuralApp {
       const row = document.createElement('div');
       row.className = 'form-row';
       row.style.alignItems = 'center';
+      const linked = !!pt.linkedFrom;
       row.innerHTML = `
         <div style="flex:1;">
-          <input type="number" class="form-control tb-pt-pdl" data-idx="${idx}" value="${pt.P_dl}" placeholder="P_DL (kips)" title="Dead Load P_DL (kips, where 1 kip = 1,000 lbs)" aria-label="Dead Load P_DL in kips" step="0.25" min="0">
+          <input type="number" class="form-control tb-pt-pdl" data-idx="${idx}" value="${pt.P_dl}" placeholder="P_DL (kips)" title="Dead Load P_DL (kips, where 1 kip = 1,000 lbs)" aria-label="Dead Load P_DL in kips" step="0.25" min="0" ${linked ? 'readonly style="border-color:#10b981; background:rgba(16,185,129,0.08);"' : ''}>
         </div>
         <div style="flex:1;">
-          <input type="number" class="form-control tb-pt-pll" data-idx="${idx}" value="${pt.P_ll}" placeholder="P_LL (kips)" title="Live Load P_LL (kips, where 1 kip = 1,000 lbs)" aria-label="Live Load P_LL in kips" step="0.25" min="0">
+          <input type="number" class="form-control tb-pt-pll" data-idx="${idx}" value="${pt.P_ll}" placeholder="P_LL (kips)" title="Live Load P_LL (kips, where 1 kip = 1,000 lbs)" aria-label="Live Load P_LL in kips" step="0.25" min="0" ${linked ? 'readonly style="border-color:#10b981; background:rgba(16,185,129,0.08);"' : ''}>
         </div>
         <div style="flex:1;">
           <input type="number" class="form-control tb-pt-pos" data-idx="${idx}" value="${pt.pos_ft}" placeholder="Location a (ft)" title="Location / distance from left support (ft)" aria-label="Location from left support in feet" step="0.5" min="0">
@@ -1430,6 +1693,10 @@ class StructuralApp {
         <div>
           <button class="btn btn-outline remove-tb-pt-btn" data-idx="${idx}" title="Remove this point load" style="padding:0.4rem 0.6rem; color:var(--fail-color); border-color:var(--fail-color);">&times;</button>
         </div>
+        ${linked ? `<div style="flex-basis:100%; font-size:0.7rem; color:#10b981; display:flex; justify-content:space-between; align-items:center;">
+          <span>${this.linkedFromLabel(pt.linkedFrom)}</span>
+          <button type="button" class="unlink-tb-pt-btn" data-idx="${idx}" style="background:none; border:none; color:#10b981; text-decoration:underline; cursor:pointer; font-size:0.7rem;">unlink</button>
+        </div>` : ''}
       `;
       container.appendChild(row);
     });
@@ -1466,6 +1733,13 @@ class StructuralApp {
           this.renderTimberPointLoadsUI();
           this.recalculate();
         }
+      });
+    });
+
+    container.querySelectorAll('.unlink-tb-pt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        this.unlinkPointLoad('tbPointLoads', idx);
       });
     });
   }
@@ -1855,6 +2129,11 @@ class StructuralApp {
       case 'braced-wall':
         this.runBracedWall();
         break;
+    }
+
+    const proj = this.projects[this.activeProjectId];
+    if (proj && this.activeMemberId && proj.members[this.activeMemberId]) {
+      proj.members[this.activeMemberId].lastResult = this.lastResult;
     }
   }
 
