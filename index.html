@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Cross-platform Structural Engineering Calculator for Steel, Concrete, Retaining Walls, Timber Framing with Full Project Submittal Printing.">
+  <title>Structural Engineering Calculator & Estimator</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="index.css?v=11">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (let name of names) caches.delete(name);
+      });
+    }
+  </script>
+</head>
+<body class="dark-theme">
+
+  <!-- AUTHENTICATION PASSCODE MODAL OVERLAY -->
+  <div id="authOverlay" class="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-icon">🔒</div>
+      <h2 class="auth-title">Restricted Access</h2>
+      <p class="auth-desc">This Structural Engineering Suite is in private development. Please enter your authorized access passcode to continue.</p>
+      
+      <form id="authForm" style="width:100%; display:flex; flex-direction:column; gap:1rem; margin-top:1rem;">
+        <div class="form-group" style="text-align:left;">
+          <label for="passcodeInput" style="font-weight:600; color:var(--text-color);">Access Passcode</label>
+          <input type="password" id="passcodeInput" class="form-control" placeholder="Enter Access Code" required autofocus style="font-size:1.1rem; text-align:center; letter-spacing:0.15em;">
+        </div>
+        <div id="authErrorMsg" class="auth-error-msg" style="display:none;">⚠️ Invalid passcode. Access denied.</div>
+        <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:1rem; width:100%;">Unlock Suite</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PRINT OPTIONS & MEMBER SELECTION MODAL -->
+  <div id="printOptionsModal" class="dashboard-overlay hidden">
+    <div class="dashboard-container" style="max-width:520px;">
+      <div class="dashboard-header" style="padding-bottom:0.75rem; border-bottom:1px solid var(--panel-border);">
+        <div class="brand-icon" style="background:rgba(59, 130, 246, 0.15); color:var(--primary-color);">📄</div>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:700; color:var(--text-color);">Print Submittal Package Options</h2>
+          <p style="color:var(--text-muted); font-size:0.85rem;">Select which project members you want to include in your printed submittal report.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.85rem; padding-top:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-weight:600; font-size:0.9rem; color:var(--text-color);">Select Project Members to Print:</label>
+          <div style="display:flex; gap:0.5rem;">
+            <button id="selectAllPrintBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Select All</button>
+            <button id="deselectAllPrintBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Deselect All</button>
+          </div>
+        </div>
+
+        <!-- DYNAMIC CHECKLIST OF MEMBERS -->
+        <div id="printMembersChecklist" style="display:flex; flex-direction:column; gap:0.5rem; max-height:240px; overflow-y:auto; background:rgba(30, 41, 59, 0.4); border:1px solid var(--panel-border); border-radius:8px; padding:0.75rem;">
+          <!-- Dynamically populated by JS app.js -->
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button id="confirmPrintSelectedBtn" class="btn btn-primary" style="flex:2; padding:0.75rem; font-weight:700; background:var(--primary-color);">
+            📄 Generate & Print Submittal Package
+          </button>
+          <button id="closePrintModalBtn" class="btn btn-outline" style="flex:1; padding:0.75rem;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ASCE 7 WIND UPLIFT PRESSURE CALCULATOR MODAL -->
+  <div id="windCalcModal" class="dashboard-overlay hidden">
+    <div class="dashboard-container" style="max-width:540px;">
+      <div class="dashboard-header" style="padding-bottom:0.75rem; border-bottom:1px solid var(--panel-border);">
+        <div class="brand-icon" style="background:rgba(239, 68, 68, 0.15); color:var(--fail-color);">🌪️</div>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:700; color:var(--text-color);">ASCE 7 Wind Uplift Pressure Calculator</h2>
+          <p style="color:var(--text-muted); font-size:0.85rem;">Compute Velocity Pressure $q_z$ & Design Roof Net Uplift Suction ($W_{\text{psf}}$) per ASCE 7-16 / 7-22.</p>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.85rem; padding-top:1rem;">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="wind-speed">Basic Wind Speed V (mph)</label>
+            <input type="number" id="wind-speed" class="form-control" value="115" step="5" min="85" max="220" placeholder="e.g. 115 mph">
+          </div>
+          <div class="form-group">
+            <label for="wind-exposure">Exposure Category</label>
+            <select id="wind-exposure" class="form-control">
+              <option value="B">Exposure B (Suburban / Wooded)</option>
+              <option value="C" selected>Exposure C (Open Terrain / Flat Fields)</option>
+              <option value="D">Exposure D (Flat Coastal / Open Water)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="wind-height">Roof Mean Height h (ft)</label>
+            <input type="number" id="wind-height" class="form-control" value="20" step="5" min="10" max="100">
+          </div>
+          <div class="form-group">
+            <label for="wind-zone">Roof Uplift Zone</label>
+            <select id="wind-zone" class="form-control">
+              <option value="field">Zone 1 - Interior Roof Field (Standard)</option>
+              <option value="edge" selected>Zone 2 - Roof Eaves & Ridges (Edge Suction)</option>
+              <option value="corner">Zone 3 - Roof Corners / Overhangs (Max Suction)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- WIND CALCULATION RESULTS CARD -->
+        <div style="background:rgba(239, 68, 68, 0.08); border:1px solid rgba(239, 68, 68, 0.25); border-radius:8px; padding:1rem; display:flex; flex-direction:column; gap:0.5rem; margin-top:0.25rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.85rem; font-weight:600; color:var(--text-muted);">Velocity Pressure $q_z$:</span>
+            <strong id="res-qz" style="font-size:1rem; color:var(--text-color);">24.8 psf</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.85rem; font-weight:600; color:var(--text-muted);">Net Pressure Coefficient $(GC_p - GC_{pi})$:</span>
+            <strong id="res-gcp" style="font-size:1rem; color:var(--text-color);">-1.20</strong>
+          </div>
+          <hr style="border:none; border-top:1px solid rgba(239,68,68,0.2); margin:0.25rem 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:1rem; font-weight:700; color:var(--fail-color);">Calculated Net Wind Uplift Suction ($W$):</span>
+            <strong id="res-w-psf" style="font-size:1.4rem; font-weight:800; color:var(--fail-color);">29.8 psf</strong>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button id="applyWindBtn" class="btn btn-primary" style="flex:2; padding:0.75rem; font-weight:700; background:#ef4444; border-color:#ef4444;">
+            ⚡ Apply Calculated Suction to Active Beam
+          </button>
+          <button id="closeWindCalcBtn" class="btn btn-outline" style="flex:1; padding:0.75rem;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROJECT MANAGER STARTING LANDING DASHBOARD -->
+  <div id="projectDashboard" class="dashboard-overlay">
+    <div class="dashboard-container">
+      <div class="dashboard-header">
+        <div class="brand-icon">🏗️</div>
+        <div>
+          <h1 style="font-family:var(--font-heading); font-size:1.75rem; font-weight:700;">Structural Engineering Project Hub</h1>
+          <p style="color:var(--text-muted); font-size:0.9rem;">Select a saved project, import a project file, or create a new multi-member project.</p>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- LEFT: CREATE NEW PROJECT FORM -->
+        <div class="dashboard-card">
+          <h3 style="font-size:1.1rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+            <span>➕</span> Create New Calculation Project
+          </h3>
+          <form id="newProjectForm" style="display:flex; flex-direction:column; gap:0.85rem;">
+            <div class="form-group">
+              <label for="newProjName">Project Title / Name</label>
+              <input type="text" id="newProjName" class="form-control" value="Oakridge Structure" placeholder="e.g. Oakridge Commercial Expansion">
+            </div>
+            <div class="form-group">
+              <label for="newProjClient">Client / Contractor</label>
+              <input type="text" id="newProjClient" class="form-control" placeholder="e.g. BuildRight Construction">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="newProjEngineer">Engineer / PE Name</label>
+                <input type="text" id="newProjEngineer" class="form-control" placeholder="e.g. John Doe, PE">
+              </div>
+              <div class="form-group">
+                <label for="newProjCompany">Company / Firm</label>
+                <input type="text" id="newProjCompany" class="form-control" placeholder="e.g. Apex Engineering">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="newProjModule">Starting Analysis Module</label>
+              <select id="newProjModule" class="form-control">
+                <option value="steel-beam">🌉 Steel Beam Analysis</option>
+                <option value="steel-column">🏛️ Steel Column & Base Plate</option>
+                <option value="footing">🧱 Concrete Spread Footing</option>
+                <option value="retaining">📐 Retaining Wall</option>
+                <option value="timber">🪵 Timber Framing &amp; Engineered Wood</option>
+                <option value="truss">🔺 Timber Roof Truss</option>
+                <option value="braced-wall">🛡️ Above-Grade Braced Wall (Wood &amp; CMU)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding:0.75rem; font-size:0.95rem; margin-top:0.5rem;">🚀 Launch Project & Enable Auto-Save</button>
+          </form>
+
+          <hr style="margin:1.25rem 0; border:none; border-top:1px solid var(--panel-border);">
+          
+          <!-- IMPORT FILE BUTTON IN HUB -->
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:0.85rem; color:var(--text-muted);">Have a saved .json project file?</span>
+            <label class="btn btn-outline" style="cursor:pointer; padding:0.4rem 0.8rem; font-size:0.85rem;">
+              📤 Import Project File
+              <input type="file" id="hubImportFileInput" accept=".json,.struct" style="display:none;">
+            </label>
+          </div>
+        </div>
+
+        <!-- RIGHT: RECENT PROJECTS LIST -->
+        <div class="dashboard-card">
+          <h3 style="font-size:1.1rem; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+            <span>📁</span> Saved Projects Library
+          </h3>
+          <div id="projectsList" style="display:flex; flex-direction:column; gap:0.75rem; max-height:360px; overflow-y:auto; padding-right:0.25rem;">
+            <!-- Dynamically populated by JS app.js -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE-OUT 3-BAR PROJECT COMPONENTS SIDEBAR DRAWER -->
+  <div id="projectSidebarOverlay" class="project-sidebar-overlay"></div>
+  <aside id="projectSidebar" class="project-sidebar">
+    <div class="sidebar-header" style="padding:1.25rem 1.5rem; border-bottom:1px solid var(--panel-border); display:flex; justify-content:space-between; align-items:center; background:rgba(30, 41, 59, 0.5);">
+      <div style="display:flex; align-items:center; gap:0.6rem;">
+        <span style="font-size:1.4rem;">🏗️</span>
+        <div>
+          <h2 style="font-family:var(--font-heading); font-size:1.2rem; font-weight:700; color:var(--text-color); margin:0;">Project Components</h2>
+          <p style="font-size:0.75rem; color:var(--text-muted); margin:0;" id="sidebarProjName">Active Project: Default</p>
+        </div>
+      </div>
+      <button id="closeProjectSidebarBtn" class="btn btn-icon" style="font-size:1.2rem; width:32px; height:32px; padding:0;">✕</button>
+    </div>
+
+    <!-- QUICK SEARCH & ADD BUTTON -->
+    <div style="padding:1rem 1.5rem 0.5rem 1.5rem; display:flex; flex-direction:column; gap:0.6rem;">
+      <input type="text" id="sidebarComponentSearch" class="form-control" placeholder="🔍 Search components in project..." style="font-size:0.85rem; padding:0.5rem 0.75rem;">
+      <button id="sidebarAddMemberBtn" class="btn btn-primary" style="width:100%; padding:0.55rem; font-size:0.85rem; font-weight:600;">
+        ➕ Create New Component
+      </button>
+    </div>
+
+    <!-- DYNAMIC LIST OF COMPONENTS -->
+    <div id="sidebarComponentsList" style="flex:1; overflow-y:auto; padding:0.75rem 1.5rem; display:flex; flex-direction:column; gap:0.75rem;">
+      <!-- Dynamically populated by JS app.js -->
+    </div>
+
+    <!-- SIDEBAR FOOTER -->
+    <div style="padding:1rem 1.5rem; border-top:1px solid var(--panel-border); background:rgba(30, 41, 59, 0.4); display:flex; flex-direction:column; gap:0.5rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; color:var(--text-muted);">
+        <span>Total Components:</span>
+        <strong id="sidebarMemCount" style="color:var(--text-color);">0</strong>
+      </div>
+      <button id="sidebarPrintBtn" class="btn btn-outline" style="width:100%; padding:0.5rem; font-size:0.8rem;">
+        📄 Print Submittal Package
+      </button>
+    </div>
+  </aside>
+
+  <!-- Top Application Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <button id="toggleProjectSidebarBtn" class="btn btn-icon" title="Toggle Project Components Sidebar (3-Bar Menu)" style="font-size:1.4rem; padding:0.3rem 0.65rem; margin-right:0.4rem; background:rgba(59, 130, 246, 0.15); color:var(--primary-color); border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px; cursor:pointer;">
+        ☰
+      </button>
+      <div class="brand-icon">🏗️</div>
+      <div>
+        <h1 class="app-title">Structural Engineering Suite</h1>
+        <p class="app-subtitle" id="activeProjSub">Project: <span id="activeProjName">Default Project</span> <span style="color:var(--pass-color); font-weight:600;">🟢 Auto-Saved</span></p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <a href="survey_app/index.html" class="btn btn-primary" title="Open Nikon NPL-322+ Field Survey Data Collector" style="background:#059669; border-color:#059669; text-decoration:none;">
+        📐 Nikon Total Station App
+      </a>
+      <button id="pwaInstallBtn" class="btn btn-primary" title="Install Standalone Desktop / Mobile App" style="display:none; background:#8b5cf6; border-color:#8b5cf6;">
+        📲 Install App
+      </button>
+      <button id="openHubBtn" class="btn btn-outline" title="Open Project Manager Dashboard">📁 Projects Hub</button>
+      <button id="saveAsProjBtn" class="btn btn-outline" title="Save Project File to Custom Directory">💾 Save As...</button>
+      <button id="exportProjBtn" class="btn btn-outline" title="Export Project to JSON File">📥 Export File</button>
+      <label class="btn btn-outline" title="Import Project JSON File" style="cursor:pointer;">
+        📤 Import File
+        <input type="file" id="headerImportFileInput" accept=".json,.struct" style="display:none;">
+      </label>
+      <button id="unitToggleBtn" class="btn btn-outline" title="Switch Imperial / Metric">
+        <span id="unitLabel">Imperial (US)</span>
+      </button>
+      <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Light/Dark Theme">
+        <span id="themeIcon">🌙</span>
+      </button>
+      <button id="lockAppBtn" class="btn btn-outline" title="Lock App Access" style="color:var(--warn-color); border-color:var(--warn-color);">🔒 Lock Suite</button>
+      <button id="printReportBtn" class="btn btn-primary" title="Print Selected Project Members Submittal Package">
+        📄 Print Submittal
+      </button>
+    </div>
+  </header>
+
+  <!-- MULTI-MEMBER MANAGER BAR IN PROJECT -->
+  <div class="member-bar">
+    <div class="member-bar-left">
+      <span class="member-bar-label">Active Structural Member:</span>
+      <select id="memberSelector" class="form-control" style="max-width:240px; font-weight:600;"></select>
+      <input type="text" id="memberNameInput" class="form-control" placeholder="Rename Member (e.g. B-1 Ridge Beam)" style="max-width:220px;">
+    </div>
+    <div class="member-bar-right">
+      <button id="addMemberBtn" class="btn btn-outline" style="padding:0.4rem 0.75rem; font-size:0.85rem;">➕ Add New Member</button>
+      <button id="deleteMemberBtn" class="btn btn-outline" style="padding:0.4rem 0.65rem; font-size:0.85rem; color:var(--fail-color); border-color:var(--fail-color);">🗑️ Delete Member</button>
+    </div>
+  </div>
+
+  <!-- Navigation Tabs for Modules -->
+  <nav class="module-nav">
+    <button class="nav-tab active" data-module="steel-beam">
+      <span class="tab-icon">🌉</span> Steel Beam
+    </button>
+    <button class="nav-tab" data-module="steel-column">
+      <span class="tab-icon">🏛️</span> Steel Column & Base Plate
+    </button>
+    <button class="nav-tab" data-module="footing">
+      <span class="tab-icon">🧱</span> Concrete Footing
+    </button>
+    <button class="nav-tab" data-module="retaining">
+      <span class="tab-icon">📐</span> Retaining Wall
+    </button>
+    <button class="nav-tab" data-module="timber">
+      <span class="tab-icon">🪵</span> Timber Beam
+    </button>
+    <button class="nav-tab" data-module="truss">
+      <span class="tab-icon">🔺</span> Timber Truss
+    </button>
+    <button class="nav-tab" data-module="braced-wall">
+      <span class="tab-icon">🛡️</span> Braced Wall (Wood &amp; CMU)
+    </button>
+  </nav>
+
+  <!-- Main Content Layout -->
+  <main class="app-container">
+    
+    <!-- LEFT PANEL: INPUT CONTROLS & FIELD GUIDE -->
+    <section class="panel input-panel">
+      
+      <!-- SUB-NAV TABS: INPUTS VS FIELD GUIDE -->
+      <div class="subnav-tabs" style="display:flex; border-bottom:1px solid var(--panel-border); margin-bottom:1rem; gap:0.5rem;">
+        <button id="tabBtnInputs" class="subnav-tab active" style="flex:1; padding:0.6rem; font-weight:600; font-size:0.85rem; border:none; background:none; color:var(--text-color); border-bottom:2px solid var(--primary-color); cursor:pointer;">
+          ⚙️ Calculation Inputs
+        </button>
+        <button id="tabBtnGuide" class="subnav-tab" style="flex:1; padding:0.6rem; font-weight:600; font-size:0.85rem; border:none; background:none; color:var(--text-muted); border-bottom:2px solid transparent; cursor:pointer;">
+          📖 Field Guide & Examples
+        </button>
+      </div>
+
+      <!-- INPUTS SUB-PANEL -->
+      <div id="subpanel-inputs">
+        
+        <!-- STEEL BEAM MODULE -->
+        <div id="mod-steel-beam" class="module-content active">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+            <h2 class="module-title" style="margin:0;">Steel Beam Analysis</h2>
+            <button id="optiSteelBeamBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Shape</button>
+          </div>
+          <p class="module-desc">Supports Wind Uplift (ASCE 7), Asymmetric Side A/B Loads, Cantilevers, & Point Loads.</p>
+          
+          <!-- Preset Selector -->
+          <div class="form-group">
+            <label for="sb-preset">Beam Application Preset</label>
+            <select id="sb-preset" class="form-control">
+              <option value="custom">Custom Configuration</option>
+              <option value="floor">🏠 Floor Beam / Joist (40 LL / 15 DL, L/360 Live, L/240 Total)</option>
+              <option value="roof">🏔️ Roof Beam / Rafter (20 LL / 15 DL, 16 Wind Uplift, L/240 Live)</option>
+              <option value="plaster">🏛️ Plaster Ceiling Header (20 LL / 15 DL, L/480 Live, L/360 Total)</option>
+              <option value="commercial">🏢 Commercial Assembly (100 LL / 25 DL, L/360 Live, L/240 Total)</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sb-beam-type">Span & Support Type</label>
+              <select id="sb-beam-type" class="form-control">
+                <option value="single">Single Span (Simply Supported)</option>
+                <option value="cantilever">Single Span + Cantilever Overhang</option>
+                <option value="two-span">2-Span Continuous Beam (3 Supports)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sb-method">Design Method</label>
+              <select id="sb-method" class="form-control">
+                <option value="ASD">AISC ASD (Allowable Stress)</option>
+                <option value="LRFD">AISC LRFD (Load & Resistance)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 2-Step Cascading Steel Selection -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sb-family">1. Select Steel Family</label>
+              <select id="sb-family" class="form-control">
+                <option value="W">Wide Flange Beams (W-Shapes)</option>
+                <option value="M">Miscellaneous Light Beams (M-Shapes)</option>
+                <option value="C">Standard Channels (C-Shapes)</option>
+                <option value="MC">Miscellaneous Channels (MC-Shapes)</option>
+                <option value="WT">Structural Tees (WT-Shapes)</option>
+                <option value="HSS">HSS Square & Rectangular Tubing</option>
+                <option value="Pipe">HSS Round Steel Pipe</option>
+                <option value="L">Angle Shapes (L-Angles)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sb-shape">2. Select AISC Section</label>
+              <select id="sb-shape" class="form-control"></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sb-span">Main Span $L_1$ (ft)</label>
+              <input type="number" id="sb-span" class="form-control" value="20" step="0.5" min="1">
+            </div>
+            <div class="form-group" id="group-span2" style="display:none;">
+              <label for="sb-span2" id="label-span2">Cantilever / Span 2 $L_2$ (ft)</label>
+              <input type="number" id="sb-span2" class="form-control" value="5" step="0.5" min="0">
+            </div>
+            <div class="form-group">
+              <label for="sb-fy">Steel Grade ($F_y$)</label>
+              <select id="sb-fy" class="form-control">
+                <option value="50">A992 (50 ksi)</option>
+                <option value="36">A36 (36 ksi)</option>
+                <option value="46">HSS A500 Gr B (46 ksi)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Load Mode Selector -->
+          <div class="form-group">
+            <label for="sb-load-mode">Uniform Load Mode</label>
+            <select id="sb-load-mode" class="form-control">
+              <option value="tributary">Area Load (PSF) + Asymmetric Side A / Side B Widths</option>
+              <option value="direct">Direct Line Load (plf or k/ft)</option>
+            </select>
+          </div>
+
+          <!-- ASYMMETRIC TRIBUTARY LOADS + WIND UPLIFT FOR STEEL -->
+          <div id="group-trib" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Side A, Side B & Wind Uplift Loads</div>
+            
+            <!-- SIDE A (LEFT TRIBUTARY) -->
+            <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+              <div class="form-group">
+                <label for="sb-trib-left">Side A (Left Trib Width) (ft)</label>
+                <input type="number" id="sb-trib-left" class="form-control" value="6.0" step="0.5" min="0">
+              </div>
+              <div class="form-group">
+                <label for="sb-dl-left">Side A Dead Load (DL_A) (psf)</label>
+                <input type="number" id="sb-dl-left" class="form-control" value="15" step="5" min="0">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label for="sb-ll-left">Side A Live Load (LL_A) (psf)</label>
+                <input type="number" id="sb-ll-left" class="form-control" value="40" step="5" min="0">
+              </div>
+            </div>
+
+            <!-- SIDE B (RIGHT TRIBUTARY) -->
+            <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+              <div class="form-group">
+                <label for="sb-trib-right">Side B (Right Trib Width) (ft)</label>
+                <input type="number" id="sb-trib-right" class="form-control" value="6.0" step="0.5" min="0">
+              </div>
+              <div class="form-group">
+                <label for="sb-dl-right">Side B Dead Load (DL_B) (psf)</label>
+                <input type="number" id="sb-dl-right" class="form-control" value="15" step="5" min="0">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label for="sb-ll-right">Side B Live Load (LL_B) (psf)</label>
+                <input type="number" id="sb-ll-right" class="form-control" value="40" step="5" min="0">
+              </div>
+            </div>
+
+            <!-- WIND UPLIFT LOAD CONTROL + CALCULATOR TRIGGER -->
+            <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2); align-items:flex-end;">
+              <div class="form-group" style="flex:2;">
+                <label for="sb-wind-psf" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Load W (psf)</label>
+                <input type="number" id="sb-wind-psf" class="form-control" value="0" step="5" min="0" placeholder="e.g. 16 psf suction">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <button type="button" class="open-wind-calc-btn btn btn-outline" style="padding:0.45rem; font-size:0.75rem; color:var(--fail-color); border-color:var(--fail-color); width:100%;">
+                  🧮 Wind Calc
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- DIRECT LINE LOAD INPUTS (FOR DIRECT MODE) -->
+          <div id="group-direct-loads" class="form-row" style="display:none;">
+            <div class="form-group">
+              <label for="sb-dl" id="label-dl">Dead Load (DL) (plf)</label>
+              <input type="number" id="sb-dl" class="form-control" value="180" step="10" min="0">
+            </div>
+            <div class="form-group">
+              <label for="sb-ll" id="label-ll">Live Load (LL) (plf)</label>
+              <input type="number" id="sb-ll" class="form-control" value="480" step="10" min="0">
+            </div>
+            <div class="form-group">
+              <label for="sb-wind-plf" style="color:var(--fail-color);">🌪️ Wind Net Uplift W (plf)</label>
+              <input type="number" id="sb-wind-plf" class="form-control" value="0" step="10" min="0">
+            </div>
+          </div>
+
+          <!-- Dynamic Point Loads Container -->
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+              <label style="margin:0; font-weight:600;">Concentrated Point Loads (Asymmetric Reactions)</label>
+              <button id="addPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
+            </div>
+            <!-- Header for Point Load Columns -->
+            <div id="pointLoadsHeader" style="display:flex; gap:0.5rem; font-size:0.75rem; font-weight:600; color:var(--text-muted); padding:0.2rem 0.25rem 0.1rem 0.25rem;">
+              <div style="flex:1;">Dead Load $P_{DL}$ (kips)</div>
+              <div style="flex:1;">Live Load $P_{LL}$ (kips)</div>
+              <div style="flex:1;">Location $a$ (ft from left)</div>
+              <div style="width:34px;"></div>
+            </div>
+            <div id="pointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+          </div>
+
+          <div class="form-group" style="display:flex; align-items:center;">
+            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+              <input type="checkbox" id="sb-selfweight" checked> Include Beam Self-Weight
+            </label>
+          </div>
+
+          <!-- Deflection Limits -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sb-deflect-live">Live Load Deflection ($\delta_{LL}$)</label>
+              <select id="sb-deflect-live" class="form-control">
+                <option value="360">L / 360 (Standard Floor)</option>
+                <option value="240">L / 240 (Roof)</option>
+                <option value="480">L / 480 (Plaster / Brittle)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sb-deflect-total">Total Load Deflection ($\delta_{TL}$)</label>
+              <select id="sb-deflect-total" class="form-control">
+                <option value="240">L / 240 (Standard Floor)</option>
+                <option value="180">L / 180 (Roof)</option>
+                <option value="360">L / 360 (Plaster / Strict)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEEL COLUMN & BASE PLATE & ANCHOR BOLTS MODULE -->
+        <div id="mod-steel-column" class="module-content">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+            <h2 class="module-title" style="margin:0;">Steel Column, Base Plate & Anchor Bolts</h2>
+            <button id="optiSteelColBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Column</button>
+          </div>
+          <p class="module-desc">AISC DG1 Column Buckling, Concrete Base Plate Stress, & Anchor Rod Tension/Shear Design.</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sc-family">1. Column Family</label>
+              <select id="sc-family" class="form-control">
+                <option value="HSS">HSS Square & Rectangular Tubing</option>
+                <option value="W">Wide Flange Columns (W-Shapes)</option>
+                <option value="Pipe">Round Steel Pipe</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sc-shape">2. Column Shape</label>
+              <select id="sc-shape" class="form-control"></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sc-length">Unbraced Height (L) (ft)</label>
+              <input type="number" id="sc-length" class="form-control" value="12" step="0.5" min="1">
+            </div>
+            <div class="form-group">
+              <label for="sc-k">Effective Length Factor (K)</label>
+              <select id="sc-k" class="form-control">
+                <option value="1.0">1.0 (Pinned-Pinned)</option>
+                <option value="0.8">0.8 (Fixed-Pinned)</option>
+                <option value="0.65">0.65 (Fixed-Fixed)</option>
+                <option value="2.1">2.1 (Cantilever Fixed-Free)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sc-axial">Applied Gravity Load ($P_{\text{axial}}$) (kips)</label>
+              <input type="number" id="sc-axial" class="form-control" value="35.0" step="1" min="0">
+            </div>
+            <div class="form-group">
+              <label for="sc-wind-uplift" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Tension $P_{\text{uplift}}$ (kips)</label>
+              <input type="number" id="sc-wind-uplift" class="form-control" value="0.0" step="1" min="0" placeholder="e.g. 5.0 kips tension">
+            </div>
+          </div>
+
+          <!-- AISC BASE PLATE SIZING & CONCRETE BEARING STRESS -->
+          <div style="background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">📐 Base Plate Sizing & Concrete Bearing (AISC DG1)</div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bp-width">Base Plate Width B (in)</label>
+                <input type="number" id="bp-width" class="form-control" value="12.0" step="0.5" min="4">
+              </div>
+              <div class="form-group">
+                <label for="bp-length">Base Plate Length N (in)</label>
+                <input type="number" id="bp-length" class="form-control" value="12.0" step="0.5" min="4">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bp-thick">Base Plate Thickness $t_p$ (in)</label>
+                <select id="bp-thick" class="form-control">
+                  <option value="0.375">3/8" Plate (0.375 in)</option>
+                  <option value="0.500">1/2" Plate (0.500 in)</option>
+                  <option value="0.625">5/8" Plate (0.625 in)</option>
+                  <option value="0.750" selected>3/4" Plate (0.750 in)</option>
+                  <option value="0.875">7/8" Plate (0.875 in)</option>
+                  <option value="1.000">1" Plate (1.000 in)</option>
+                  <option value="1.250">1-1/4" Plate (1.250 in)</option>
+                  <option value="1.500">1-1/2" Plate (1.500 in)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bp-fy">Plate Steel Grade ($F_y$)</label>
+                <select id="bp-fy" class="form-control">
+                  <option value="36">A36 (36 ksi Plate)</option>
+                  <option value="50">A572 Gr 50 (50 ksi)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ANCHOR BOLTS / ANCHOR RODS DESIGN (AISC DG1 / F1554) -->
+          <div style="background:rgba(234, 179, 8, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(234, 179, 8, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--warn-color);">⚓ Anchor Bolts / Anchor Rods Design (F1554)</div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="ab-qty"># of Anchor Rods</label>
+                <select id="ab-qty" class="form-control">
+                  <option value="4" selected>4 Anchor Rods (Standard)</option>
+                  <option value="6">6 Anchor Rods</option>
+                  <option value="8">8 Anchor Rods</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="ab-dia">Anchor Rod Diameter ($d_b$)</label>
+                <select id="ab-dia" class="form-control">
+                  <option value="0.500">1/2" Anchor Rods</option>
+                  <option value="0.625">5/8" Anchor Rods</option>
+                  <option value="0.750" selected>3/4" Anchor Rods (0.75 in)</option>
+                  <option value="0.875">7/8" Anchor Rods</option>
+                  <option value="1.000">1" Anchor Rods</option>
+                  <option value="1.250">1-1/4" Anchor Rods</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="ab-grade">Anchor Rod Material Specification</label>
+                <select id="ab-grade" class="form-control">
+                  <option value="36">F1554 Grade 36 (Fu = 58 ksi)</option>
+                  <option value="55">F1554 Grade 55 (Fu = 75 ksi)</option>
+                  <option value="105">F1554 Grade 105 High-Strength (Fu = 125 ksi)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="ab-embed">Embedment Depth $h_{\text{ef}}$ (in)</label>
+                <input type="number" id="ab-embed" class="form-control" value="12.0" step="0.5" min="4" max="60" placeholder="e.g. 12.0 in">
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- CONCRETE FOOTING MODULE WITH WIND UPLIFT BALLAST CHECK -->
+        <div id="mod-footing" class="module-content">
+          <h2 class="module-title">Concrete Column Pad Footing & Uplift</h2>
+          <p class="module-desc">Pad Footing sizing, ACI 318 rebar, & ASCE 7 Wind Uplift Ballast / Hold-Down Check.</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cf-pdead">Dead Load ($P_{\text{dead}}$) (kips)</label>
+              <input type="number" id="cf-pdead" class="form-control" value="40" step="5" min="0">
+            </div>
+            <div class="form-group">
+              <label for="cf-plive">Live Load ($P_{\text{live}}$) (kips)</label>
+              <input type="number" id="cf-plive" class="form-control" value="25" step="5" min="0">
+            </div>
+            <div class="form-group">
+              <label for="cf-puplift" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Uplift Tension ($W_{\text{uplift}}$) (kips)</label>
+              <input type="number" id="cf-puplift" class="form-control" value="0" step="2" min="0" placeholder="e.g. 10 kips uplift">
+            </div>
+          </div>
+
+          <!-- CONCRETE FOOTING PAD DIMENSIONS (SIDE 1, SIDE 2, THICKNESS) -->
+          <div style="background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border); display:flex; flex-direction:column; gap:0.75rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">📐 Footing Pad Dimensions (Side 1 x Side 2 x Thickness)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cf-width">Side 1 / Width B (ft)</label>
+                <input type="number" id="cf-width" class="form-control" value="5.0" step="0.5" min="1">
+              </div>
+              <div class="form-group">
+                <label for="cf-length">Side 2 / Length L (ft)</label>
+                <input type="number" id="cf-length" class="form-control" value="5.0" step="0.5" min="1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="cf-thick">Footing Pad Thickness t (in)</label>
+              <input type="number" id="cf-thick" class="form-control" value="14" step="1" min="6">
+            </div>
+          </div>
+
+          <!-- COLUMN / PEDESTAL DIMENSIONS -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cf-col-w">Column / Pedestal Width (in)</label>
+              <input type="number" id="cf-col-w" class="form-control" value="12" step="1" min="4">
+            </div>
+            <div class="form-group">
+              <label for="cf-col-l">Column / Pedestal Length (in)</label>
+              <input type="number" id="cf-col-l" class="form-control" value="12" step="1" min="4">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cf-qallow">Allowable Soil Capacity ($q_{\text{allow}}$) (ksf)</label>
+              <input type="number" id="cf-qallow" class="form-control" value="3.0" step="0.25" min="0.5">
+            </div>
+            <div class="form-group">
+              <label for="cf-fc">Concrete Strength ($f'_c$) (psi)</label>
+              <select id="cf-fc" class="form-control">
+                <option value="3000">3,000 psi</option>
+                <option value="4000">4,000 psi</option>
+                <option value="5000">5,000 psi</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- REBAR REINFORCEMENT INPUT CONTROLS -->
+          <div style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(34, 197, 94, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(34, 197, 94, 0.2);">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--pass-color);">🧱 Concrete Rebar Reinforcement Selection</div>
+            
+            <div class="form-group">
+              <label for="cf-rebar-mode">Reinforcement Specification Mode</label>
+              <select id="cf-rebar-mode" class="form-control">
+                <option value="auto">Auto-Calculate Required Rebar Schedule (ACI 318)</option>
+                <option value="custom">Custom Rebar Selection (Specify Bar Size & Spacing)</option>
+              </select>
+            </div>
+
+            <div id="group-custom-rebar" class="form-row" style="display:none;">
+              <div class="form-group">
+                <label for="cf-bar-size">Rebar Size</label>
+                <select id="cf-bar-size" class="form-control">
+                  <option value="3">#3 Bar (0.375" dia | 0.11 in²)</option>
+                  <option value="4">#4 Bar (0.500" dia | 0.20 in²)</option>
+                  <option value="5" selected>#5 Bar (0.625" dia | 0.31 in²)</option>
+                  <option value="6">#6 Bar (0.750" dia | 0.44 in²)</option>
+                  <option value="7">#7 Bar (0.875" dia | 0.60 in²)</option>
+                  <option value="8">#8 Bar (1.000" dia | 0.79 in²)</option>
+                  <option value="9">#9 Bar (1.128" dia | 1.00 in²)</option>
+                  <option value="10">#10 Bar (1.270" dia | 1.27 in²)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="cf-bar-spacing">Center-to-Center Spacing</label>
+                <select id="cf-bar-spacing" class="form-control">
+                  <option value="4">4" o.c.</option>
+                  <option value="6">6" o.c.</option>
+                  <option value="8">8" o.c.</option>
+                  <option value="10">10" o.c.</option>
+                  <option value="12" selected>12" o.c.</option>
+                  <option value="14">14" o.c.</option>
+                  <option value="16">16" o.c.</option>
+                  <option value="18">18" o.c. (Max ACI Code Limit)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RETAINING WALL MODULE -->
+        <div id="mod-retaining" class="module-content">
+          <h2 class="module-title">Retaining &amp; Braced Basement Wall</h2>
+          <p class="module-desc">Rankine Active ($K_a$) &amp; At-Rest ($K_0$) Soil Pressures, Diaphragm Tie Anchor &amp; FOS Checks (IBC 2021 / ACI 318).</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="rw-condition">1. Wall Support Condition</label>
+              <select id="rw-condition" class="form-control">
+                <option value="cantilever" selected>📐 Unbraced Cantilever Retaining Wall (Free Top, Active Ka)</option>
+                <option value="braced">🏢 Braced / Restrained Basement Wall (Top Diaphragm Restraint, At-Rest K0)</option>
+              </select>
+            </div>
+            <div class="form-group" id="rw-group-brace-spacing" style="display:none;">
+              <label for="rw-brace-spacing">Top Floor Joist / Brace Anchor Spacing</label>
+              <select id="rw-brace-spacing" class="form-control">
+                <option value="16">16" o.c. Floor Joists</option>
+                <option value="19.2">19.2" o.c. Floor Joists</option>
+                <option value="24" selected>24" o.c. Floor Joists (2 ft Standard)</option>
+                <option value="32">32" o.c. Joists / Braces</option>
+                <option value="48">48" o.c. Wall Knee Braces (4 ft)</option>
+                <option value="72">72" o.c. Column Braces (6 ft)</option>
+                <option value="96">96" o.c. Column Braces (8 ft)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="rw-material">Wall Construction Material</label>
+              <select id="rw-material" class="form-control">
+                <option value="concrete" selected>🧱 Reinforced Cast-in-Place Concrete (150 pcf)</option>
+                <option value="cmu8">🧱 8" Grouted CMU Masonry Block Wall</option>
+                <option value="cmu10">🧱 10" Grouted CMU Masonry Block Wall</option>
+                <option value="cmu12">🧱 12" Grouted CMU Masonry Block Wall</option>
+                <option value="wood">🪵 Pressure-Treated Wood / Timber Post-and-Plank Retaining Wall</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="rw-height">Wall Height (H) (ft)</label>
+              <input type="number" id="rw-height" class="form-control" value="10.0" step="0.5" min="2">
+            </div>
+            <div class="form-group">
+              <label for="rw-base">Base Width (B) (ft)</label>
+              <input type="number" id="rw-base" class="form-control" value="6.5" step="0.5" min="1">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="rw-density">Soil Density ($\gamma$) (pcf)</label>
+              <input type="number" id="rw-density" class="form-control" value="120" step="5" min="80">
+            </div>
+            <div class="form-group">
+              <label for="rw-phi">Friction Angle ($\phi$) (deg)</label>
+              <input type="number" id="rw-phi" class="form-control" value="30" step="1" min="15" max="45">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="rw-surcharge">Surface Surcharge (psf)</label>
+            <input type="number" id="rw-surcharge" class="form-control" value="100" step="50" min="0">
+          </div>
+        </div>
+
+        <!-- TIMBER MODULE WITH ASYMMETRIC SIDE A / SIDE B LOADS + WIND UPLIFT -->
+        <div id="mod-timber" class="module-content">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+            <h2 class="module-title" style="margin:0;">Timber & Engineered Wood Analysis</h2>
+            <button id="optiTimberBtn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">🔍 Find Lightest Wood</button>
+          </div>
+          <p class="module-desc">Supports Wind Uplift (ASCE 7), Built-Up Headers, Cantilevers & NDS ASD/LRFD.</p>
+          
+          <!-- Preset Selector -->
+          <div class="form-group">
+            <label for="tb-preset">Wood Application Preset</label>
+            <select id="tb-preset" class="form-control">
+              <option value="custom">Custom Configuration</option>
+              <option value="floor">🏠 Residential Floor Joist (40 LL / 10 DL, L/360 Live, L/240 Total)</option>
+              <option value="roof">🏔️ Roof Rafter / Beam (20 LL / 15 DL, 16 Wind Uplift, L/240 Live)</option>
+              <option value="header">🚪 Window / Door Header (50 LL / 15 DL, L/360 Live, L/240 Total)</option>
+              <option value="deck">🌲 Exterior Deck Joist (50 LL / 10 DL, L/360 Live, L/240 Total)</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tb-beam-type">Span & Support Type</label>
+              <select id="tb-beam-type" class="form-control">
+                <option value="single">Single Span (Simply Supported)</option>
+                <option value="cantilever">Single Span + Cantilever Overhang</option>
+                <option value="two-span">2-Span Continuous Beam (3 Supports)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tb-species">Wood Species & Grade</label>
+              <select id="tb-species" class="form-control"></select>
+            </div>
+          </div>
+
+                    <!-- 2-Step Cascading Wood Member Selection with ALWAYS-VISIBLE Plies -->
+          <div class="form-row">
+            <div class="form-group" style="flex:1.4;">
+              <label for="tb-family">1. Wood Family / Type</label>
+              <select id="tb-family" class="form-control">
+                <option value="sawn" selected>Dimension Sawn Lumber (2x4 to 4x12)</option>
+                <option value="builtup">🛠️ Custom Built-Up Header / Beam (Width x Depth)</option>
+                <option value="lvl">LVL Engineered Beams (1-3/4" Plies)</option>
+                <option value="timber">Heavy Timber Posts & Beams (4x4 to 12x12)</option>
+                <option value="glulam">Glulam Architectural Beams</option>
+                <option value="psl">PSL Parallam Heavy Beams</option>
+                <option value="ijoist">TJI Wood I-Joists</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label for="tb-plies" style="font-weight:600; color:var(--primary-color);">Number of Plies</label>
+              <select id="tb-plies" class="form-control">
+                <option value="1">1-Ply (Single Member)</option>
+                <option value="2" selected>2-Ply (Standard Header - 2x)</option>
+                <option value="3">3-Ply (Triple Header / Girder - 3x)</option>
+                <option value="4">4-Ply (Quadruple Girder - 4x)</option>
+                <option value="5">5-Ply (Heavy Girder)</option>
+                <option value="6">6-Ply (Heavy Girder)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- STANDARD SIZE DROPDOWN (FOR SAWN, LVL, TIMBER, GLULAM, ETC.) -->
+          <div class="form-group" id="group-standard-size">
+            <label for="tb-size">2. Select Wood Section</label>
+            <select id="tb-size" class="form-control"></select>
+          </div>
+
+          <!-- DYNAMIC BUILT-UP HEADER CONTROLS (PLY WIDTH, DEPTH) -->
+          <div id="group-builtup-controls" style="display:none; flex-direction:column; gap:0.75rem; background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2);">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">🛠️ Custom Header Dimensions</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tb-ply-width">Single Ply Thickness (in)</label>
+                <select id="tb-ply-width" class="form-control">
+                  <option value="1.5" selected>1.5" (Sawn Lumber 2x)</option>
+                  <option value="1.75">1.75" (LVL Ply)</option>
+                  <option value="2.5">2.5" (Heavy Sawn 3x)</option>
+                  <option value="3.5">3.5" (Post / Timber 4x)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="tb-depth">Member Depth / Height (in)</label>
+                <select id="tb-depth" class="form-control">
+                  <option value="3.5">3.5" (2x4 / 4x4)</option>
+                  <option value="5.5">5.5" (2x6 / 6x6)</option>
+                  <option value="7.25">7.25" (2x8 / LVL 7-1/4)</option>
+                  <option value="9.25" selected>9.25" (2x10 / LVL 9-1/4)</option>
+                  <option value="9.5">9.5" (LVL / TJI 9-1/2)</option>
+                  <option value="11.25">11.25" (2x12 / LVL 11-1/4)</option>
+                  <option value="11.875">11.875" (LVL 11-7/8)</option>
+                  <option value="14.0">14.0" (LVL / Glulam 14")</option>
+                  <option value="16.0">16.0" (LVL / Glulam 16")</option>
+                  <option value="18.0">18.0" (LVL / Glulam 18")</option>
+                  <option value="20.0">20.0" (Heavy LVL 20")</option>
+                  <option value="22.0">22.0" (Heavy LVL 22")</option>
+                  <option value="24.0">24.0" (Heavy LVL / Glulam 24")</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tb-span">Main Span $L_1$ (ft)</label>
+              <input type="number" id="tb-span" class="form-control" value="14" step="0.5" min="1">
+            </div>
+            <div class="form-group" id="tb-group-span2" style="display:none;">
+              <label for="tb-span2" id="tb-label-span2">Cantilever / Span 2 $L_2$ (ft)</label>
+              <input type="number" id="tb-span2" class="form-control" value="4" step="0.5" min="0">
+            </div>
+          </div>
+
+          <!-- Load Mode Selector -->
+          <div class="form-group">
+            <label for="tb-load-mode">Uniform Load Mode</label>
+            <select id="tb-load-mode" class="form-control">
+              <option value="tributary">Area Load (PSF) + Asymmetric Side A / Side B Widths</option>
+              <option value="direct">Direct Line Load (plf)</option>
+            </select>
+          </div>
+
+          <!-- ASYMMETRIC TRIBUTARY LOADS + WIND UPLIFT FOR WOOD -->
+          <div id="tb-group-trib" style="display:flex; flex-direction:column; gap:0.75rem; background:rgba(30, 41, 59, 0.5); padding:0.85rem; border-radius:8px; border:1px solid var(--panel-border);">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--accent-color);">⚖️ Side A, Side B & Wind Uplift Loads</div>
+            
+            <!-- SIDE A (LEFT TRIBUTARY) -->
+            <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+              <div class="form-group">
+                <label for="tb-trib-left">Side A (Left Spacing / Trib) (ft)</label>
+                <input type="number" id="tb-trib-left" class="form-control" value="1.33" step="0.16" min="0">
+              </div>
+              <div class="form-group">
+                <label for="tb-dl-left">Side A Dead Load (DL_A) (psf)</label>
+                <input type="number" id="tb-dl-left" class="form-control" value="10" step="5" min="0">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label for="tb-ll-left">Side A Live Load (LL_A) (psf)</label>
+                <input type="number" id="tb-ll-left" class="form-control" value="40" step="5" min="0">
+              </div>
+            </div>
+
+            <!-- SIDE B (RIGHT TRIBUTARY) -->
+            <div class="form-row" style="background:rgba(255,255,255,0.02); padding:0.5rem; border-radius:6px;">
+              <div class="form-group">
+                <label for="tb-trib-right">Side B (Right Spacing / Trib) (ft)</label>
+                <input type="number" id="tb-trib-right" class="form-control" value="1.33" step="0.16" min="0">
+              </div>
+              <div class="form-group">
+                <label for="tb-dl-right">Side B Dead Load (DL_B) (psf)</label>
+                <input type="number" id="tb-dl-right" class="form-control" value="10" step="5" min="0">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label for="tb-ll-right">Side B Live Load (LL_B) (psf)</label>
+                <input type="number" id="tb-ll-right" class="form-control" value="40" step="5" min="0">
+              </div>
+            </div>
+
+            <!-- WIND UPLIFT LOAD CONTROL FOR WOOD + CALCULATOR TRIGGER -->
+            <div class="form-row" style="background:rgba(239, 68, 68, 0.08); padding:0.5rem; border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2); align-items:flex-end;">
+              <div class="form-group" style="flex:2;">
+                <label for="tb-wind-psf" style="color:var(--fail-color); font-weight:600;">🌪️ Wind Net Uplift Load W (psf)</label>
+                <input type="number" id="tb-wind-psf" class="form-control" value="0" step="5" min="0" placeholder="e.g. 16 psf suction">
+              </div>
+              <div class="form-group" style="flex:1;">
+                <button type="button" class="open-wind-calc-btn btn btn-outline" style="padding:0.45rem; font-size:0.75rem; color:var(--fail-color); border-color:var(--fail-color); width:100%;">
+                  🧮 Wind Calc
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- DIRECT LINE LOAD INPUTS (FOR WOOD DIRECT MODE) -->
+          <div id="tb-group-direct-loads" class="form-row" style="display:none;">
+            <div class="form-group">
+              <label for="tb-dl" id="tb-label-dl">Dead Load (DL) (plf)</label>
+              <input type="number" id="tb-dl" class="form-control" value="50" step="10" min="0">
+            </div>
+            <div class="form-group">
+              <label for="tb-ll" id="tb-label-ll">Live Load (LL) (plf)</label>
+              <input type="number" id="tb-ll" class="form-control" value="120" step="10" min="0">
+            </div>
+            <div class="form-group">
+              <label for="tb-wind-plf" style="color:var(--fail-color);">🌪️ Wind Net Uplift W (plf)</label>
+              <input type="number" id="tb-wind-plf" class="form-control" value="0" step="10" min="0">
+            </div>
+          </div>
+
+          <!-- Dynamic Point Loads Container for Wood -->
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+              <label style="margin:0; font-weight:600;">Concentrated Point Loads (Asymmetric Reactions)</label>
+              <button id="tbAddPointLoadBtn" class="btn btn-outline" style="padding:0.25rem 0.5rem; font-size:0.75rem;">+ Add Point Load</button>
+            </div>
+            <!-- Header for Point Load Columns -->
+            <div id="tbPointLoadsHeader" style="display:flex; gap:0.5rem; font-size:0.75rem; font-weight:600; color:var(--text-muted); padding:0.2rem 0.25rem 0.1rem 0.25rem;">
+              <div style="flex:1;">Dead Load $P_{DL}$ (kips)</div>
+              <div style="flex:1;">Live Load $P_{LL}$ (kips)</div>
+              <div style="flex:1;">Location $a$ (ft from left)</div>
+              <div style="width:34px;"></div>
+            </div>
+            <div id="tbPointLoadsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+          </div>
+
+          <!-- Deflection Limits for Wood -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tb-deflect-live">Live Load Deflection ($\delta_{LL}$)</label>
+              <select id="tb-deflect-live" class="form-control">
+                <option value="360">L / 360 (Standard Floor)</option>
+                <option value="240">L / 240 (Roof)</option>
+                <option value="480">L / 480 (Plaster / Brittle)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tb-deflect-total">Total Load Deflection ($\delta_{TL}$)</label>
+              <select id="tb-deflect-total" class="form-control">
+                <option value="240">L / 240 (Standard Floor)</option>
+                <option value="180">L / 180 (Roof)</option>
+                <option value="360">L / 360 (Plaster / Strict)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- TIMBER TRUSS MODULE -->
+        <div id="mod-truss" class="module-content hidden">
+          <h2 class="module-title">Timber Roof Truss Engineering</h2>
+          <p class="module-desc">ANSI/TPI 1 & NDS 2018 Design Solver & Vector Member Force Diagram Generator.</p>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-type">1. Truss Profile Type</label>
+              <select id="truss-type" class="form-control">
+                <option value="howe" selected>🔺 Howe / W-Truss (Standard Fink Pitch)</option>
+                <option value="kingpost">🔺 King Post Truss (Single Center Vertical)</option>
+                <option value="queenpost">🔺 Queen Post Truss (Twin Verticals)</option>
+                <option value="scissor">⛪ Scissor Vaulted Roof Truss</option>
+                <option value="monopitch">📐 Monopitch / Shed Roof Truss</option>
+                <option value="attic">🏠 Attic Storage Room Truss</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="truss-species">2. Timber Species & Grade</label>
+              <select id="truss-species" class="form-control">
+                <option value="SYP No. 1" selected>Southern Pine (SYP) No. 1</option>
+                <option value="SYP Select Structural">Southern Pine (SYP) Select Struct</option>
+                <option value="SYP No. 2">Southern Pine (SYP) No. 2</option>
+                <option value="DF-L No. 1">Douglas Fir-Larch (DF-L) No. 1</option>
+                <option value="DF-L Select Structural">Douglas Fir-Larch Select Struct</option>
+                <option value="SPF No. 1/No. 2">Spruce-Pine-Fir (SPF) No. 1/No. 2</option>
+                <option value="Western Red Cedar (WRC) Select Struct">Western Red Cedar (WRC) Select Struct</option>
+                <option value="Western Red Cedar (WRC) No. 1/No. 2">Western Red Cedar (WRC) No. 1/No. 2</option>
+                <option value="Alaska Yellow Cedar No. 1">Alaska Yellow Cedar No. 1</option>
+                <option value="Northern White Cedar">Northern White Cedar</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-member-size">Lumber Member Size</label>
+              <select id="truss-member-size" class="form-control">
+                <option value="2x4">2x4 (1.5" x 3.5")</option>
+                <option value="2x6" selected>2x6 (1.5" x 5.5")</option>
+                <option value="2x8">2x8 (1.5" x 7.25")</option>
+                <option value="2x10">2x10 (1.5" x 9.25")</option>
+                <option value="2x12">2x12 (1.5" x 11.25")</option>
+                <option value="4x4">4x4 (3.5" x 3.5" Timber)</option>
+                <option value="4x6">4x6 (3.5" x 5.5" Timber)</option>
+                <option value="4x8">4x8 (3.5" x 7.25" Timber)</option>
+                <option value="4x10">4x10 (3.5" x 9.25" Timber)</option>
+                <option value="4x12">4x12 (3.5" x 11.25" Timber)</option>
+                <option value="6x6">6x6 (5.5" x 5.5" Heavy Timber)</option>
+                <option value="6x8">6x8 (5.5" x 7.5" Heavy Timber)</option>
+                <option value="6x10">6x10 (5.5" x 9.5" Heavy Timber)</option>
+                <option value="6x12">6x12 (5.5" x 11.5" Heavy Timber)</option>
+                <option value="8x8">8x8 (7.5" x 7.5" Heavy Timber)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="truss-span">Truss Span L (ft)</label>
+              <input type="number" id="truss-span" class="form-control" value="30.0" step="0.5" min="1" max="100">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-pitch">Roof Pitch (X:12)</label>
+              <select id="truss-pitch" class="form-control">
+                <option value="3">3:12 Pitch</option>
+                <option value="4">4:12 Pitch</option>
+                <option value="5">5:12 Pitch</option>
+                <option value="6" selected>6:12 Pitch</option>
+                <option value="7">7:12 Pitch</option>
+                <option value="8">8:12 Pitch</option>
+                <option value="9">9:12 Pitch</option>
+                <option value="10">10:12 Pitch</option>
+                <option value="12">12:12 Pitch</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="truss-heel-height">Heel Height / Raised Heel (in)</label>
+              <input type="number" id="truss-heel-height" class="form-control" value="6.0" step="0.5" min="4" max="36" placeholder="e.g. 6.0 in">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="truss-overhang">Overhang Eave Length (in)</label>
+              <input type="number" id="truss-overhang" class="form-control" value="12.0" step="1" min="0" max="48">
+            </div>
+            <div class="form-group">
+              <label for="truss-spacing">Truss Spacing (o.c.)</label>
+              <select id="truss-spacing" class="form-control">
+                <option value="12">12" o.c. (1 ft Spacing)</option>
+                <option value="16">16" o.c. (1.33 ft)</option>
+                <option value="19.2">19.2" o.c. (1.6 ft)</option>
+                <option value="24" selected>24" o.c. (2 ft Standard)</option>
+                <option value="32">32" o.c. (2.67 ft)</option>
+                <option value="36">36" o.c. (3 ft Spacing)</option>
+                <option value="48">48" o.c. (4 ft Pole Barn / Heavy Framing)</option>
+                <option value="60">60" o.c. (5 ft Heavy Timber)</option>
+                <option value="72">72" o.c. (6 ft Heavy Timber)</option>
+                <option value="84">84" o.c. (7 ft Heavy Timber)</option>
+                <option value="96">96" o.c. (8 ft Commercial / Heavy Timber)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- TRUSS LOADING SPECIFICATIONS -->
+          <div style="background:rgba(59, 130, 246, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(59, 130, 246, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:var(--primary-color);">⚖️ Top &amp; Bottom Chord Loading (psf)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="truss-tc-ll">Top Chord Live Load (Snow/Roof) (psf)</label>
+                <input type="number" id="truss-tc-ll" class="form-control" value="20.0" step="5" min="0">
+              </div>
+              <div class="form-group">
+                <label for="truss-tc-dl">Top Chord Dead Load (Shingles/Sheathing) (psf)</label>
+                <input type="number" id="truss-tc-dl" class="form-control" value="10.0" step="1" min="0">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="truss-bc-ll">Bottom Chord Live Load (Attic Storage) (psf)</label>
+                <input type="number" id="truss-bc-ll" class="form-control" value="0.0" step="5" min="0">
+              </div>
+              <div class="form-group">
+                <label for="truss-bc-dl">Bottom Chord Dead Load (Ceiling/Drywall) (psf)</label>
+                <input type="number" id="truss-bc-dl" class="form-control" value="5.0" step="1" min="0">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ABOVE-GRADE BRACED WALL MODULE (WOOD & CMU BLOCK) -->
+        <div id="mod-braced-wall" class="module-content">
+          <h2 class="module-title">Above-Grade &amp; Basement Braced Wall</h2>
+          <p class="module-desc">Wood Stud Framing Shear Walls (IRC R602.10 / NDS) &amp; Reinforced CMU Masonry Walls (TMS 402 / IBC 2021).</p>
+          
+          <!-- 1. Support & Restraint Condition -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-top-restraint">1. Top Restraint Support Condition</label>
+              <select id="bw-top-restraint" class="form-control">
+                <option value="braced" selected>🏢 Braced at Top (Restrained by Roof/Floor Diaphragm)</option>
+                <option value="unbraced">📐 Unbraced at Top (Free Cantilever / Parapet Wall)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bw-wall-type">2. Wall Construction Material</label>
+              <select id="bw-wall-type" class="form-control">
+                <option value="wood" selected>🪵 Wood Stud Framing Shear Wall (IRC R602.10 / NDS)</option>
+                <option value="cmu">🧱 Reinforced Concrete Block CMU Wall (TMS 402 / IBC 2109)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 2. Geometry & Openings -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-total-length">Total Wall Line Length L (ft)</label>
+              <input type="number" id="bw-total-length" class="form-control" value="24.0" step="0.5" min="4" max="150" placeholder="e.g. 24.0 ft">
+            </div>
+            <div class="form-group">
+              <label for="bw-wall-height">Wall Height H (ft)</label>
+              <input type="number" id="bw-wall-height" class="form-control" value="9.0" step="0.5" min="6" max="24">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-provided-length">Total Provided Braced Wall Segment Length (ft)</label>
+              <input type="number" id="bw-provided-length" class="form-control" value="12.0" step="0.5" min="2" max="100" placeholder="e.g. 12.0 ft">
+            </div>
+            <div class="form-group">
+              <label for="bw-num-panels"># of Braced Wall Segments/Panels</label>
+              <input type="number" id="bw-num-panels" class="form-control" value="2" step="1" min="1" max="10">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bw-openings-pct">Wall Window &amp; Door Openings Area (%)</label>
+              <select id="bw-openings-pct" class="form-control">
+                <option value="0">0% (Solid Wall - No Openings)</option>
+                <option value="10">10% (Small Punch Windows)</option>
+                <option value="15" selected>15% (Standard Doors &amp; Windows)</option>
+                <option value="25">25% (Large Windows &amp; Patio Doors)</option>
+                <option value="35">35% (High Window Ratio / Storefront)</option>
+                <option value="50">50% (Max Perforated Shear Wall Limit)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bw-trib-width">Tributary Building Width (ft)</label>
+              <input type="number" id="bw-trib-width" class="form-control" value="28.0" step="1" min="10" max="100" placeholder="e.g. 28.0 ft">
+            </div>
+          </div>
+
+          <!-- 3. Wind Load Specification (ASCE 7 & On-Center Load) -->
+          <div style="background:rgba(14, 165, 233, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(14, 165, 233, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:#0ea5e9;">🌪️ ASCE 7 Wind Speed &amp; On-Center Pressure Input</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-wind-speed">Basic Wind Speed V (mph)</label>
+                <select id="bw-wind-speed" class="form-control">
+                  <option value="100">100 mph (Low Wind)</option>
+                  <option value="115" selected>115 mph (Standard ASCE 7 Risk Cat II)</option>
+                  <option value="130">130 mph (Coastal Wind)</option>
+                  <option value="140">140 mph (High Wind Region)</option>
+                  <option value="150">150 mph (HVHZ Florida/Gulf Coast)</option>
+                  <option value="170">170 mph (Hurricane Zone)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-wind-psf">Direct Out-of-Plane Wind Pressure (psf)</label>
+                <input type="number" id="bw-wind-psf" class="form-control" value="20.0" step="1" min="5" max="100">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-exposure">Wind Exposure Category</label>
+                <select id="bw-exposure" class="form-control">
+                  <option value="B">Exposure B (Suburban / Wooded)</option>
+                  <option value="C" selected>Exposure C (Open Flat Terrain / Fields)</option>
+                  <option value="D">Exposure D (Coastal / Open Water)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-dead-load">Roof / Floor Gravity Dead Load (psf)</label>
+                <input type="number" id="bw-dead-load" class="form-control" value="15.0" step="1" min="5" max="60">
+              </div>
+            </div>
+          </div>
+
+          <!-- WOOD SPECIFIC CONTROLS -->
+          <div id="bw-group-wood" style="background:rgba(217, 119, 6, 0.08); padding:0.85rem; border-radius:8px; border:1px solid rgba(217, 119, 6, 0.2); display:flex; flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:#d97706;">🪵 Wood Stud Framing &amp; Sheathing Specification (SDPWS / NDS)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-stud-size">Wall Stud Member Size</label>
+                <select id="bw-stud-size" class="form-control">
+                  <option value="2x4">2x4 Wood Studs (3.5" Depth)</option>
+                  <option value="2x6" selected>2x6 Wood Studs (5.5" Depth)</option>
+                  <option value="2x8">2x8 Wood Studs (7.25" Depth)</option>
+                  <option value="3x6">3x6 Heavy Timber Studs</option>
+                  <option value="4x6">4x6 Heavy Timber Studs</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-stud-spacing">Stud On-Center Spacing (o.c.)</label>
+                <select id="bw-stud-spacing" class="form-control">
+                  <option value="12">12" o.c. Spacing</option>
+                  <option value="16" selected>16" o.c. Spacing</option>
+                  <option value="19.2">19.2" o.c. Spacing</option>
+                  <option value="24">24" o.c. Spacing</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-sheathing">Sheathing Material / Bracing Method</label>
+                <select id="bw-sheathing" class="form-control">
+                  <option value="osb_716" selected>WSP 7/16" OSB Sheathing</option>
+                  <option value="ply_1532">WSP 15/32" Structural Plywood</option>
+                  <option value="gypsum">Gypsum Board (1/2" Sheetrock GB)</option>
+                  <option value="letin">1x4 Let-In Diagonal Brace (LIB)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-nail-spacing">Nail Edge Spacing (8d Common)</label>
+                <select id="bw-nail-spacing" class="form-control">
+                  <option value="6" selected>6" o.c. Edge / 12" Field (Standard - 260 plf)</option>
+                  <option value="4">4" o.c. Edge / 12" Field (High Shear - 380 plf)</option>
+                  <option value="3">3" o.c. Edge / 12" Field (High Shear - 490 plf)</option>
+                  <option value="2">2" o.c. Edge / 12" Field (Max Shear - 640 plf)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- CMU MASONRY SPECIFIC CONTROLS -->
+          <div id="bw-group-cmu" style="display:none; background:rgba(100, 116, 139, 0.1); padding:0.85rem; border-radius:8px; border:1px solid rgba(100, 116, 139, 0.3); flex-direction:column; gap:0.75rem; margin-top:0.5rem;">
+            <div style="font-weight:600; font-size:0.85rem; color:#94a3b8;">🧱 CMU Block &amp; Rebar Reinforcement (TMS 402)</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bw-cmu-size">CMU Block Width</label>
+                <select id="bw-cmu-size" class="form-control">
+                  <option value="8_cmu" selected>8" CMU Block (7.625" actual)</option>
+                  <option value="10_cmu">10" CMU Block (9.625" actual)</option>
+                  <option value="12_cmu">12" CMU Block (11.625" actual)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bw-cmu-grout">Grout Cell Spacing</label>
+                <select id="bw-cmu-grout" class="form-control">
+                  <option value="solid">Solid Grouted (All Cores Filled)</option>
+                  <option value="16">16" o.c. Grouted Cores</option>
+                  <option value="24">24" o.c. Grouted Cores</option>
+                  <option value="32" selected>32" o.c. Grouted Cores</option>
+                  <option value="48">48" o.c. Grouted Cores</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- FIELD GUIDE SUB-PANEL (INTERACTIVE EXPLANATIONS & EXAMPLES) -->
+      <div id="subpanel-guide" style="display:none; flex-direction:column; gap:1rem;">
+        <div style="background:rgba(30, 41, 59, 0.6); padding:1rem; border-radius:8px; border:1px solid var(--panel-border);">
+          <h3 style="font-size:1.1rem; color:var(--primary-color); margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem;">
+            <span>📖</span> Active Module Field Guide & Examples
+          </h3>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">Below is a reference explanation for every input parameter in the active module, including code references and real-world design examples.</p>
+        </div>
+
+        <div id="guideContentList" style="display:flex; flex-direction:column; gap:0.85rem;">
+          <!-- Dynamically populated by JS app.js based on active module -->
+        </div>
+      </div>
+
+      <!-- PRO SUBMITTAL REPORT HEADER CUSTOMIZER -->
+      <hr style="margin:1.5rem 0; border:none; border-top:1px solid var(--panel-border);">
+      <h3 style="font-size:0.95rem; margin-bottom:0.75rem; color:var(--text-muted);">📄 Submittal Header Customizer</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rep-engineer">Engineer / Designer Name</label>
+          <input type="text" id="rep-engineer" class="form-control" placeholder="John Doe, PE">
+        </div>
+        <div class="form-group">
+          <label for="rep-company">Company / Firm Name</label>
+          <input type="text" id="rep-company" class="form-control" placeholder="Apex Engineering LLC">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="rep-project">Project Name / Location</label>
+          <input type="text" id="rep-project" class="form-control" placeholder="Main Street Commercial Building">
+        </div>
+        <div class="form-group">
+          <label for="rep-client">Client / Contractor</label>
+          <input type="text" id="rep-client" class="form-control" placeholder="BuildRight Construction">
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: VISUAL DIAGRAMS & RESULTS -->
+    <section class="panel output-panel">
+      
+      <!-- Status Badge Header -->
+      <div class="results-header">
+        <div class="status-badge" id="statusBadge">
+          <span class="status-icon">✓</span>
+          <span class="status-text">STATUS: PASS</span>
+        </div>
+        <div class="utilization-bar-container">
+          <div class="utilization-label">Stress Utilization: <strong id="utilPercent">0%</strong></div>
+          <div class="utilization-track">
+            <div class="utilization-fill" id="utilFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BEAM TO COLUMN REACTION TRANSFER ACTION BAR -->
+      <div id="transferReactionContainer" style="display:none; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:0.75rem 1rem; align-items:center; justify-content:space-between; gap:0.5rem;">
+        <div>
+          <div style="font-weight:700; font-size:0.85rem; color:#10b981;">🏛️ Asymmetric Bearing Reactions Link</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">Transfer Left (R1) or Right (R2) bearing reaction to Column!</div>
+        </div>
+        <div style="display:flex; gap:0.4rem;">
+          <button id="transferR1Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R1 → Left Col</button>
+          <button id="transferR2Btn" class="btn btn-primary" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:#10b981;">Link R2 → Right Col</button>
+        </div>
+      </div>
+
+      <!-- Key Metrics Output Grid -->
+      <div class="metrics-grid" id="metricsGrid">
+        <!-- Dynamically populated by JS app.js -->
+      </div>
+
+      <!-- Real-time Visual Canvas Diagram -->
+      <div class="canvas-wrapper">
+        <h3 class="canvas-title">Interactive Analysis Diagrams</h3>
+        <canvas id="analysisCanvas"></canvas>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Printable Submittal Document Container -->
+  <div id="printDocument" class="print-only">
+    <div class="print-header">
+      <h2>STRUCTURAL CALCULATIONS SUBMITTAL REPORT</h2>
+      <p id="printMetaInfo"></p>
+    </div>
+    <div id="printBody"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="js/app.js?v=11"></script>
+</body>
+</html>

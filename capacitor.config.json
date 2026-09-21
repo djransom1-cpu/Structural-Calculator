@@ -1,0 +1,9 @@
+{
+  "appId": "com.structuralcalc.app",
+  "appName": "Structural Engineering Suite",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
