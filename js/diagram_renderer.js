@@ -293,13 +293,43 @@ export class StructuralDiagramRenderer {
     this.ctx.fillRect(wallX - 35, yBase, baseW, baseH);
     this.ctx.strokeRect(wallX - 35, yBase, baseW, baseH);
 
+    // If Braced Basement Wall, draw Top Diaphragm Restraint & Tie Anchor
+    if (results.wallCondition === 'braced') {
+      this.ctx.fillStyle = '#38bdf8';
+      this.ctx.strokeStyle = '#0284c7';
+      this.ctx.lineWidth = 3;
+
+      // Floor Diaphragm Line
+      this.ctx.beginPath();
+      this.ctx.moveTo(wallX - 60, yTop);
+      this.ctx.lineTo(wallX, yTop);
+      this.ctx.stroke();
+
+      // Restraint Pin Symbol
+      this.drawSupportPin(wallX - 10, yTop + 6, '#38bdf8');
+
+      // Restraint Callouts
+      this.ctx.fillStyle = '#38bdf8';
+      this.ctx.font = '700 12px sans-serif';
+      this.ctx.fillText(`🏢 Top Floor Diaphragm Restraint (R_top = ${results.R_top_lbft.toFixed(0)} lbs/ft)`, wallX - 120, yTop - 12);
+      this.ctx.font = '11px sans-serif';
+      this.ctx.fillText(`Diaphragm Anchor Tie: ${results.T_brace_anchor_lb.toFixed(0)} lbs @ ${results.braceSpacingInches}" OC`, wallX - 120, yTop - 28);
+    }
+
     // Annotations
     this.ctx.fillStyle = textColor;
     this.ctx.font = '12px sans-serif';
-    this.ctx.fillText(`Ka = ${results.Ka.toFixed(3)}`, wallX + stemT + 80, yTop + 40);
-    this.ctx.fillText(`Max Pressure: ${results.q_soil_bottom_psf.toFixed(0)} psf`, wallX + stemT + 80, yBase - 10);
-    this.ctx.fillText(`Overturning FOS: ${results.FOS_overturning.toFixed(2)} (${results.passOverturning ? 'Pass' : 'FAIL'})`, wallX + 160, yBase + 40);
-    this.ctx.fillText(`Sliding FOS: ${results.FOS_sliding.toFixed(2)} (${results.passSliding ? 'Pass' : 'FAIL'})`, wallX + 160, yBase + 60);
+    const kLabel = results.wallCondition === 'braced' ? `K0 (At-Rest) = ${results.K0.toFixed(3)}` : `Ka (Active) = ${results.Ka.toFixed(3)}`;
+    this.ctx.fillText(kLabel, wallX + stemT + 80, yTop + 40);
+    this.ctx.fillText(`Max Soil Pressure: ${results.q_soil_bottom_psf.toFixed(0)} psf`, wallX + stemT + 80, yBase - 10);
+    
+    if (results.wallCondition === 'braced') {
+      this.ctx.fillText(`Max Mid-Height Moment: ${results.M_max_lbft.toFixed(0)} lb-ft/ft`, wallX + 160, yBase + 40);
+      this.ctx.fillText(`Stem Bending Stress: ${results.fb_stem_psi.toFixed(0)} psi (${results.passStemBending ? 'Pass' : 'FAIL'})`, wallX + 160, yBase + 60);
+    } else {
+      this.ctx.fillText(`Overturning FOS: ${results.FOS_overturning.toFixed(2)} (${results.passOverturning ? 'Pass' : 'FAIL'})`, wallX + 160, yBase + 40);
+      this.ctx.fillText(`Sliding FOS: ${results.FOS_sliding.toFixed(2)} (${results.passSliding ? 'Pass' : 'FAIL'})`, wallX + 160, yBase + 60);
+    }
   }
 
   // 5. TIMBER FRAMING DIAGRAM
