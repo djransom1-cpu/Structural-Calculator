@@ -10,3 +10,7 @@ Thumbs.db
 
 # Scratch directory
 scratch/
+
+# Dependencies & build output
+node_modules/
+dist/
