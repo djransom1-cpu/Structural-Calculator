@@ -17,7 +17,7 @@ import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
 import { analyzeSteelBeam, analyzeSteelColumn, findLightestSteelBeam, findLightestSteelColumn } from './steel_engine.js';
 import { analyzeConcreteFooting } from './concrete_engine.js';
 import { analyzeRetainingWall } from './retaining_engine.js';
-import { TIMBER_SPECIES, TIMBER_MEMBERS, analyzeTimberBeam, findLightestTimberBeam } from './timber_engine.js';
+import { TIMBER_SPECIES, TIMBER_MEMBERS, TIMBER_CUSTOM_SIZE_VALUE, analyzeTimberBeam, findLightestTimberBeam } from './timber_engine.js';
 import { StructuralDiagramRenderer } from './diagram_renderer.js';
 
 class StructuralApp {
@@ -833,6 +833,9 @@ class StructuralApp {
     if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
     if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
     if (data.tb_size) document.getElementById('tb-size').value = data.tb_size;
+    if (data.tb_custom_width) document.getElementById('tb-custom-width').value = data.tb_custom_width;
+    if (data.tb_custom_depth) document.getElementById('tb-custom-depth').value = data.tb_custom_depth;
+    this.updateCustomTimberSizeVisibility();
 
     if (data.tb_trib_left) document.getElementById('tb-trib-left').value = data.tb_trib_left;
     if (data.tb_trib_right) document.getElementById('tb-trib-right').value = data.tb_trib_right;
@@ -893,6 +896,8 @@ class StructuralApp {
       tb_ply_width: document.getElementById('tb-ply-width').value,
       tb_depth: document.getElementById('tb-depth').value,
       tb_size: document.getElementById('tb-size').value,
+      tb_custom_width: document.getElementById('tb-custom-width').value,
+      tb_custom_depth: document.getElementById('tb-custom-depth').value,
       tb_trib_left: document.getElementById('tb-trib-left').value,
       tb_trib_right: document.getElementById('tb-trib-right').value,
       tb_dl_left: document.getElementById('tb-dl-left').value,
@@ -1003,10 +1008,26 @@ class StructuralApp {
         sizeSelect.appendChild(opt);
       });
 
+      const customOpt = document.createElement('option');
+      customOpt.value = TIMBER_CUSTOM_SIZE_VALUE;
+      customOpt.textContent = '✏️ Custom Size (Enter Width x Depth)';
+      sizeSelect.appendChild(customOpt);
+
       if (matchingMembers.length > 0) {
         sizeSelect.value = matchingMembers[0].name;
+      } else {
+        sizeSelect.value = TIMBER_CUSTOM_SIZE_VALUE;
       }
     }
+
+    this.updateCustomTimberSizeVisibility();
+  }
+
+  updateCustomTimberSizeVisibility() {
+    const sizeSelect = document.getElementById('tb-size');
+    const customGroup = document.getElementById('group-custom-timber-size');
+    if (!sizeSelect || !customGroup) return;
+    customGroup.style.display = sizeSelect.value === TIMBER_CUSTOM_SIZE_VALUE ? 'flex' : 'none';
   }
 
   renderPointLoadsUI() {
@@ -1166,6 +1187,11 @@ class StructuralApp {
       this.recalculate();
     });
 
+    document.getElementById('tb-size')?.addEventListener('change', () => {
+      this.updateCustomTimberSizeVisibility();
+      this.recalculate();
+    });
+
     document.getElementById('sb-preset')?.addEventListener('change', (e) => {
       const val = e.target.value;
       if (val === 'roof') {
@@ -1242,7 +1268,7 @@ class StructuralApp {
       'bp-width', 'bp-length', 'bp-thick', 'bp-fy', 'ab-qty', 'ab-dia', 'ab-grade',
       'cf-pdead', 'cf-plive', 'cf-puplift', 'cf-width', 'cf-length', 'cf-thick', 'cf-col-w', 'cf-col-l', 'cf-qallow', 'cf-fc', 'cf-rebar-mode', 'cf-bar-size', 'cf-bar-spacing',
       'rw-height', 'rw-base', 'rw-density', 'rw-phi', 'rw-surcharge',
-      'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth',
+      'tb-species', 'tb-family', 'tb-size', 'tb-plies', 'tb-ply-width', 'tb-depth', 'tb-custom-width', 'tb-custom-depth',
       'tb-span', 'tb-span2', 'tb-beam-type', 'tb-load-mode',
       'tb-trib-left', 'tb-trib-right', 'tb-dl-left', 'tb-dl-right', 'tb-ll-left', 'tb-ll-right', 'tb-wind-psf', 'tb-wind-plf',
       'tb-dl', 'tb-ll', 'tb-deflect-live', 'tb-deflect-total',
@@ -1615,6 +1641,8 @@ class StructuralApp {
       plyWidth: parseFloat(document.getElementById('tb-ply-width').value) || 1.5,
       depth: parseFloat(document.getElementById('tb-depth').value) || 9.25,
       sizeName: document.getElementById('tb-size').value,
+      customWidth: parseFloat(document.getElementById('tb-custom-width').value) || 5.125,
+      customDepth: parseFloat(document.getElementById('tb-custom-depth').value) || 12,
       loadMode: document.getElementById('tb-load-mode').value,
       L_ft: parseFloat(document.getElementById('tb-span').value) || 14,
       L2_ft: parseFloat(document.getElementById('tb-span2').value) || 0,
