@@ -36,6 +36,20 @@ export const TIMBER_FAMILIES = {
   'ijoist': 'TJI Wood I-Joists'
 };
 
+// Restricts the Wood Species & Grade dropdown to the categories that are
+// actually valid for each family, so e.g. a Glulam section can't be paired
+// with a solid-sawn DF-L grade (each engineered wood product has its own
+// fixed, proprietary design values — it isn't available "in" other species).
+export const TIMBER_FAMILY_SPECIES_CATEGORIES = {
+  'builtup': ['DF-L', 'SYP', 'HF', 'SPF'],
+  'sawn': ['DF-L', 'SYP', 'HF', 'SPF'],
+  'timber': ['DF-L', 'SYP', 'HF', 'SPF'],
+  'lvl': ['LVL'],
+  'glulam': ['Glulam'],
+  'psl': ['PSL'],
+  'ijoist': ['TJI']
+};
+
 export const TIMBER_MEMBERS = [
   { name: "2x4", category: "sawn", b: 1.5, d: 3.5, Area: 5.25, Sx: 3.06, Ix: 5.36, weight: 1.5 },
   { name: "2x6", category: "sawn", b: 1.5, d: 5.5, Area: 8.25, Sx: 7.56, Ix: 20.80, weight: 2.3 },

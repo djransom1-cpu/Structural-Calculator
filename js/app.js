@@ -17,7 +17,7 @@ import { AISC_DATABASE, getSectionByName } from './aisc_database.js';
 import { analyzeSteelBeam, analyzeSteelColumn, findLightestSteelBeam, findLightestSteelColumn } from './steel_engine.js';
 import { analyzeConcreteFooting } from './concrete_engine.js';
 import { analyzeRetainingWall } from './retaining_engine.js';
-import { TIMBER_SPECIES, TIMBER_MEMBERS, TIMBER_CUSTOM_SIZE_VALUE, analyzeTimberBeam, findLightestTimberBeam } from './timber_engine.js';
+import { TIMBER_SPECIES, TIMBER_MEMBERS, TIMBER_CUSTOM_SIZE_VALUE, TIMBER_FAMILY_SPECIES_CATEGORIES, analyzeTimberBeam, findLightestTimberBeam } from './timber_engine.js';
 import { StructuralDiagramRenderer } from './diagram_renderer.js';
 
 class StructuralApp {
@@ -829,6 +829,7 @@ class StructuralApp {
 
     if (data.tb_family) document.getElementById('tb-family').value = data.tb_family;
     this.updateTimberMembers();
+    if (data.tb_species) document.getElementById('tb-species').value = data.tb_species;
     if (data.tb_plies) document.getElementById('tb-plies').value = data.tb_plies;
     if (data.tb_ply_width) document.getElementById('tb-ply-width').value = data.tb_ply_width;
     if (data.tb_depth) document.getElementById('tb-depth').value = data.tb_depth;
@@ -929,15 +930,6 @@ class StructuralApp {
     this.updateBeamShapes();
     this.updateColumnShapes();
     this.updateTimberMembers();
-
-    const tbSpeciesSelect = document.getElementById('tb-species');
-    tbSpeciesSelect.innerHTML = '';
-    TIMBER_SPECIES.forEach(sp => {
-      const opt = document.createElement('option');
-      opt.value = sp.name;
-      opt.textContent = `${sp.name} (Fb: ${sp.Fb} psi | E: ${(sp.E/1000000).toFixed(2)}M)`;
-      tbSpeciesSelect.appendChild(opt);
-    });
   }
 
   updateBeamShapes() {
@@ -1021,6 +1013,33 @@ class StructuralApp {
     }
 
     this.updateCustomTimberSizeVisibility();
+    this.updateTimberSpeciesForFamily();
+  }
+
+  updateTimberSpeciesForFamily() {
+    const familySelect = document.getElementById('tb-family');
+    const speciesSelect = document.getElementById('tb-species');
+    if (!familySelect || !speciesSelect) return;
+
+    const family = familySelect.value || 'builtup';
+    const allowedCategories = TIMBER_FAMILY_SPECIES_CATEGORIES[family] || [];
+    const currentValue = speciesSelect.value;
+
+    const matchingSpecies = TIMBER_SPECIES.filter(sp => allowedCategories.includes(sp.category));
+
+    speciesSelect.innerHTML = '';
+    matchingSpecies.forEach(sp => {
+      const opt = document.createElement('option');
+      opt.value = sp.name;
+      opt.textContent = `${sp.name} (Fb: ${sp.Fb} psi | E: ${(sp.E/1000000).toFixed(2)}M)`;
+      speciesSelect.appendChild(opt);
+    });
+
+    if (matchingSpecies.some(sp => sp.name === currentValue)) {
+      speciesSelect.value = currentValue;
+    } else if (matchingSpecies.length > 0) {
+      speciesSelect.value = matchingSpecies[0].name;
+    }
   }
 
   updateCustomTimberSizeVisibility() {
